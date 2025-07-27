@@ -29,28 +29,32 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 logger.info("Server started")
 
-skip_hosting_game = os.getenv("SKIP_HOSTING_GAME", "true").lower() == "true"
+skip_hosting_game = os.getenv("SKIP_HOSTING_GAME", "false").lower() == "true"
 
 # FastAPI application with lifespan context
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Actions to perform during startup
     if not skip_hosting_game:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            unpacked_game_dir = os.path.join(tmpdir, "unpacked_game")
-            logger.info(f"Downloading and extracting game package to {unpacked_game_dir}...")
-            try:
-                await download_and_extract_game_package(unpacked_game_dir)
-                logger.info("Game package extracted, starting application.")
-
-                # Serve the static game files
-                app.mount("/game", StaticFiles(directory=unpacked_game_dir), name="game")
-
-                # Make unpacked_dir accessible to route handlers via app state
-                app.state.unpacked_game_dir = unpacked_game_dir
-            except Exception as e:
-                logger.error(f"Failed to download game package: {e}")
-                logger.info("Starting server without game package...")
+        # 로컬 게임 패키지 디렉토리 사용
+        unpacked_game_dir = os.path.join("data", "game_package", "unpacked")
+        logger.info(f"Attempting to extract game package to {unpacked_game_dir}...")
+        
+        # 게임 패키지 압축 해제 시도
+        success = await download_and_extract_game_package(unpacked_game_dir)
+        
+        if success:
+            logger.info("Game package extracted successfully, starting application.")
+            # Serve the static game files
+            app.mount("/game", StaticFiles(directory=unpacked_game_dir), name="game")
+            # Make unpacked_dir accessible to route handlers via app state
+            app.state.unpacked_game_dir = unpacked_game_dir
+        else:
+            logger.warning("Game package not found or extraction failed. Game hosting disabled.")
+            # 게임 패키지가 없을 때는 기본 응답만 제공
+            @app.get("/game")
+            async def game_not_available():
+                return {"message": "Game package not available"}
 
     yield  # Application runs here
 
@@ -59,17 +63,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# Health check endpoint for Railway
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "holoduel-server"}
+
 # Redirect from root (/) to /game/index.html
 @app.get("/")
 async def root():
-    if not skip_hosting_game:
-        return RedirectResponse(url="/game/index.html")
-    else:
-        return {"message": "HoloDuel Server is running!", "status": "online", "websocket": "/ws"}
-
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "timestamp": time.time()}
+    return RedirectResponse(url="/game/index.html")
 
 # Store connected clients
 class ConnectionManager:
