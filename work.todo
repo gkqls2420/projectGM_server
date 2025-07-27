@@ -1,0 +1,34 @@
+Bugs:
+    ☐ Fubuki move mascot should not be allowed if it kills you
+    ☐ Chloe 1 cost oshi skill is in the wrong order, have to decide archive/reorder before looking at them.
+    - shouldn't be reveal, because other player doesn't get to see.
+    - probably needs a new destination that lets the player choose.
+    ☐ Pekora rabbitality reroll from fan should affect whole ability
+
+Todo:
+    ☐ Reconnect logic -
+        - Leave game room open,
+        - give remaining player a button to kill the match after a minute
+        - Assign to local storage a UUID for that account that they'll use to connect back
+            - pass this up when joining the server
+            - if you need to reconnect, it automatically puts you back in the right room and sends you events to catch you up
+Revisit:
+    ☐ Clean up observer mode game start so it's more clear what's going on
+        - indicate whose turn it is with the spinner somehow
+        - Show the cards on screen facedown
+    ☐ Rework timing states to gather all effects and then play them out after resolution of that timing state
+    - London Mulligan?
+    ☐ make on_take_damage simultaneous resolution if more complicated than Zeta's ability
+
+Q&A Todos:
+    ☐ Q160: When two holomems you control are downed at the same time, resolve all of the downed process first, then do the life loss process one at a time.
+        - this is relevant for kobo multi damage.
+        - don't want to let people put cheer on a member that is about to die.
+        - How to implement???
+
+    ☐ Q154: If both players go down to 0 life at the same time, it is a draw.
+        - is this possible? with self damage being at cleanup time
+
+
+Very Low Pri:
+    ☐ Losing 2 life from buzz shouldn't let the client know the id at all

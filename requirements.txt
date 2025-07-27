@@ -1,0 +1,7 @@
+aiofiles
+azure-storage-blob
+fastapi
+gunicorn
+python-dotenv
+uvicorn
+websockets
