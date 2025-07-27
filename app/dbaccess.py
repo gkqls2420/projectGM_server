@@ -114,6 +114,9 @@ async def download_and_extract_game_package(destination_path):
 
     try:
         blob_service_client = _get_azure_blob_service_client()
+        if not blob_service_client:
+            raise Exception("Azure Blob Service client not available")
+            
         blob_client = blob_service_client.get_blob_client(container=STATIC_FILES_CONTAINER, blob=STATIC_FILE_NAME)
 
         logger.info(f"Download files to {local_zip_path}")
@@ -128,6 +131,7 @@ async def download_and_extract_game_package(destination_path):
             zip_ref.extractall(destination_path)
     except Exception as e:
         logger.error(f"Error download static files: {e}")
+        raise e
 
 
 def download_blobs_between_dates(start_date, end_date, download_path):

@@ -29,30 +29,33 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 logger.info("Server started")
 
-skip_hosting_game = os.getenv("SKIP_HOSTING_GAME", "false").lower() == "true"
+skip_hosting_game = os.getenv("SKIP_HOSTING_GAME", "true").lower() == "true"
 
 # FastAPI application with lifespan context
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Actions to perform during startup
-    with tempfile.TemporaryDirectory() as tmpdir:
-        if not skip_hosting_game:
+    if not skip_hosting_game:
+        with tempfile.TemporaryDirectory() as tmpdir:
             unpacked_game_dir = os.path.join(tmpdir, "unpacked_game")
             logger.info(f"Downloading and extracting game package to {unpacked_game_dir}...")
-            await download_and_extract_game_package(unpacked_game_dir)
-            logger.info("Game package extracted, starting application.")
+            try:
+                await download_and_extract_game_package(unpacked_game_dir)
+                logger.info("Game package extracted, starting application.")
 
+                # Serve the static game files
+                app.mount("/game", StaticFiles(directory=unpacked_game_dir), name="game")
 
-            # Serve the static game files
-            app.mount("/game", StaticFiles(directory=unpacked_game_dir), name="game")
+                # Make unpacked_dir accessible to route handlers via app state
+                app.state.unpacked_game_dir = unpacked_game_dir
+            except Exception as e:
+                logger.error(f"Failed to download game package: {e}")
+                logger.info("Starting server without game package...")
 
-            # Make unpacked_dir accessible to route handlers via app state
-            app.state.unpacked_game_dir = unpacked_game_dir
+    yield  # Application runs here
 
-        yield  # Application runs here
-
-        # Actions to perform during shutdown (if needed)
-        # Clean up or additional teardown actions can be added here if necessary.
+    # Actions to perform during shutdown (if needed)
+    # Clean up or additional teardown actions can be added here if necessary.
 
 app = FastAPI(lifespan=lifespan)
 
