@@ -545,6 +545,7 @@ class PlayerState:
         blue_cheer = 0
         red_cheer = 0
         purple_cheer = 0
+        yellow_cheer = 0
 
         check_cheer_effects = self.get_effects_at_timing("check_cheer", card, "")
         for effect in check_cheer_effects:
@@ -563,6 +564,8 @@ class PlayerState:
                                 purple_cheer += amount
                             case "white":
                                 white_cheer += amount
+                            case "yellow":
+                                yellow_cheer += amount
 
         for attached_cheer_card in attached_cheer_cards:
             if "white" in attached_cheer_card["colors"]:
@@ -575,6 +578,8 @@ class PlayerState:
                 red_cheer += 1
             elif "purple" in attached_cheer_card["colors"]:
                 purple_cheer += 1
+            elif "yellow" in attached_cheer_card["colors"]:
+                yellow_cheer += 1
 
         cheer_costs = art["costs"]
         any_cost = 0
@@ -595,12 +600,14 @@ class PlayerState:
                     red_cheer -= color_amount
                 elif color_required == "purple":
                     purple_cheer -= color_amount
+                elif color_required == "yellow":
+                    yellow_cheer -= color_amount
 
         # If any cheer is negative, the requirement is not met.
-        if white_cheer < 0 or green_cheer < 0 or blue_cheer < 0 or red_cheer < 0 or purple_cheer < 0:
+        if white_cheer < 0 or green_cheer < 0 or blue_cheer < 0 or red_cheer < 0 or purple_cheer < 0 or yellow_cheer < 0:
             return False
 
-        total_cheer_left = white_cheer + green_cheer + blue_cheer + red_cheer + purple_cheer
+        total_cheer_left = white_cheer + green_cheer + blue_cheer + red_cheer + purple_cheer + yellow_cheer
         if total_cheer_left < any_cost:
             return False
 
