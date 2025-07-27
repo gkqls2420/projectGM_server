@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from app.matchmaking import Matchmaking
 import app.message_types as message_types
 from app.playermanager import PlayerManager, Player
@@ -63,6 +64,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+# CORS 설정 추가 (HTML5 export용)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 모든 origin 허용 (개발용)
+    allow_credentials=True,
+    allow_methods=["*"],  # 모든 HTTP 메서드 허용
+    allow_headers=["*"],  # 모든 헤더 허용
+    expose_headers=["*"],  # 모든 헤더 노출
+)
+
 # Health check endpoint for Railway
 @app.get("/health")
 async def health_check():
@@ -73,14 +84,25 @@ async def health_check():
 async def root():
     return RedirectResponse(url="/game/index.html")
 
+# HTML5 WebSocket 연결을 위한 추가 엔드포인트
+@app.get("/ws")
+async def websocket_info():
+    """WebSocket 연결 정보를 제공하는 엔드포인트"""
+    return {
+        "websocket_url": "wss://web-production-db70.up.railway.app/ws",
+        "protocol": "websocket",
+        "cors_enabled": True
+    }
+
 # Store connected clients
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
 
     async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
+        # accept는 이미 websocket_endpoint에서 호출됨
+        if websocket not in self.active_connections:
+            self.active_connections.append(websocket)
 
     async def disconnect(self, websocket: WebSocket, send_disconnection = False):
         if websocket in self.active_connections:
@@ -121,14 +143,24 @@ async def send_error_message(websocket: WebSocket, error_id, error_str : str):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    player_id = str(uuid.uuid4())
-    player = player_manager.get_player(player_id)
-    if player:
-        player.websocket = websocket
-    else:
-        player = player_manager.add_player(player_id, websocket)
+    # HTML5 CORS를 위한 추가 헤더 설정
+    try:
+        # WebSocket 연결 수락 (CORS 헤더 포함)
+        await websocket.accept()
+        
+        player_id = str(uuid.uuid4())
+        player = player_manager.get_player(player_id)
+        if player:
+            player.websocket = websocket
+        else:
+            player = player_manager.add_player(player_id, websocket)
 
-    await manager.connect(websocket)
+        # ConnectionManager에 추가 (이미 accept됨)
+        manager.active_connections.append(websocket)
+        
+    except Exception as e:
+        logger.error(f"WebSocket connection error: {e}")
+        return
     try:
         while True:
             data = await websocket.receive_text()
