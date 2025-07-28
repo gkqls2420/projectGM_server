@@ -2548,8 +2548,7 @@ class GameEngine:
 
             continuation = self.effect_resolution_state.effect_resolution_continuation
             self.effect_resolution_state = None
-            # Clear stage_selected_holomems when effect resolution is complete
-            self.stage_selected_holomems = []
+            # Don't clear stage_selected_holomems here - wait until the entire card effect is complete
             if not self.is_game_over():
                 continuation()
             return
@@ -5232,7 +5231,13 @@ class GameEngine:
         card_effects = card["effects"]
         add_ids_to_effects(card_effects, player.player_id, card_id)
         self.floating_cards.append(card)
-        self.begin_resolving_effects(card_effects, continuation, [card])
+        
+        # Create a new continuation that clears stage_selected_holomems after the card effect is complete
+        def card_completion_continuation():
+            self.stage_selected_holomems = []
+            continuation()
+        
+        self.begin_resolving_effects(card_effects, card_completion_continuation, [card])
 
         return True
 
