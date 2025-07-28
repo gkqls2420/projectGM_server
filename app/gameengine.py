@@ -162,6 +162,7 @@ class Condition:
     Condition_TopDeckCardHasAnyCardType = "top_deck_has_any_card_type"
     Condition_TopDeckCardHasAnyTag = "top_deck_card_has_any_tag"
     Condition_ColorOnStage = "color_on_stage"
+    Condition_MonocolorDifferentColorsOnStage = "monocolor_different_colors_on_stage"
 
 
 class TurnEffectType:
@@ -2937,6 +2938,23 @@ class GameEngine:
                 holomems = effect_player.get_holomem_on_stage()
                 condition_colors = condition["condition_colors"]
                 return any(True for color in condition_colors for holomem in holomems if color in holomem["colors"])
+            case Condition.Condition_MonocolorDifferentColorsOnStage:
+                # Check if stage has at least one monocolor holomem and at least 2 different colors
+                holomems = effect_player.get_holomem_on_stage()
+                if len(holomems) < 2:
+                    return False
+                
+                # Check if there's at least one monocolor holomem
+                has_monocolor = any(len(holomem["colors"]) == 1 for holomem in holomems)
+                if not has_monocolor:
+                    return False
+                
+                # Check if there are at least 2 different colors among all holomems
+                all_colors = set()
+                for holomem in holomems:
+                    all_colors.update(holomem["colors"])
+                
+                return len(all_colors) >= 2
             case _:
                 raise NotImplementedError(f"Unimplemented condition: {condition['condition']}")
         return False
@@ -3344,7 +3362,7 @@ class GameEngine:
             case EffectType.EffectType_ChooseCards:
                 from_zone = effect["from"]
                 destination = effect["destination"]
-                look_at = effect["look_at"]
+                look_at = effect.get("look_at", -1)
                 amount_min = effect["amount_min"]
                 amount_max = effect["amount_max"]
                 requirement = effect.get("requirement", None)
@@ -3359,8 +3377,12 @@ class GameEngine:
                 requirement_colors = effect.get("requirement_colors", [])
                 requirement_sub_types = effect.get("requirement_sub_types", [])
                 requirement_same_name_as_last_choice = effect.get("requirement_same_name_as_last_choice", False)
+                # two_tone_color_pc extra requirements
+                requirement_monocolor_only = effect.get("requirement_monocolor_only", False)
+                requirement_different_colors = effect.get("requirement_different_colors", False)
+                requirement_match_selected_holomem_color = effect.get("requirement_match_selected_holomem_color", None)
                 reveal_chosen = effect.get("reveal_chosen", False)
-                remaining_cards_action = effect["remaining_cards_action"]
+                remaining_cards_action = effect.get("remaining_cards_action", "NULL")
                 after_choose_effect = effect.get("after_choose_effect", None)
                 requirement_details = {
                     "requirement": requirement,
@@ -3374,7 +3396,10 @@ class GameEngine:
                     "requirement_only_holomems_with_any_tag": requirement_only_holomems_with_any_tag,
                     "requirement_colors": requirement_colors,
                     "requirement_sub_types": requirement_sub_types,
-                    "requirement_same_name_as_last_choice": requirement_same_name_as_last_choice
+                    "requirement_same_name_as_last_choice": requirement_same_name_as_last_choice,
+                    "requirement_monocolor_only": requirement_monocolor_only,
+                    "requirement_different_colors": requirement_different_colors,
+                    "requirement_match_selected_holomem_color": requirement_match_selected_holomem_color
                 }
 
                 cards_to_choose_from = []
@@ -3394,6 +3419,8 @@ class GameEngine:
                         cards_to_choose_from = effect_player.holopower
                     case "last_revealed_cards":
                         cards_to_choose_from = effect_player.last_revealed_cards
+                    case "stage":
+                        cards_to_choose_from = effect_player.get_holomem_on_stage()
                     case "stacked_holomem":
                         cards_to_choose_from = effect_player.get_holomem_under(effect["source_card_id"])
 
@@ -3406,7 +3433,13 @@ class GameEngine:
 
                 cards_to_choose_from = cards_to_choose_from[:look_at]
                 cards_can_choose = cards_to_choose_from
-                if requirement:
+                
+                # Special handling for stage selection (two_tone_color_pc)
+                if from_zone == "stage" and requirement_monocolor_only:
+                    cards_can_choose = [card for card in cards_can_choose if len(card["colors"]) == 1]
+                
+                # Skip requirement filtering for stage selection (two_tone_color_pc)
+                if requirement and from_zone != "stage":
                     match requirement:
                         case "buzz":
                             cards_can_choose = [card for card in cards_can_choose if "buzz" in card and card["buzz"]]
@@ -3472,6 +3505,20 @@ class GameEngine:
                             same_names += card["card_names"]
                         cards_can_choose = [card for card in cards_can_choose if any(name in card["card_names"] for name in same_names)]
 
+                    # two_tone_color_pc: Filter to only monocolor holomems
+                    if requirement_monocolor_only:
+                        cards_can_choose = [card for card in cards_can_choose if len(card["colors"]) == 1]
+
+                    # two_tone_color_pc: Filter to match colors of previously selected holomems
+                    if requirement_match_selected_holomem_color is not None:
+                        # Get the colors of the specified previously selected holomem
+                        if requirement_match_selected_holomem_color < len(self.last_chosen_cards):
+                            selected_card_id = self.last_chosen_cards[requirement_match_selected_holomem_color]
+                            selected_card = self.find_card(selected_card_id)
+                            selected_colors = selected_card["colors"]
+                            # Include cards that have any color in common with the selected holomem
+                            cards_can_choose = [card for card in cards_can_choose if any(color in card["colors"] for color in selected_colors)]
+
                 if len(cards_can_choose) < amount_min:
                     amount_min = len(cards_can_choose)
 
@@ -3511,6 +3558,7 @@ class GameEngine:
                     "remaining_cards_action": remaining_cards_action,
                     "after_choose_effect": after_choose_effect,
                     "source_card_id": effect["source_card_id"],
+                    "requirement_different_colors": requirement_different_colors,
                     "effect_resolution": self.handle_choose_cards_result,
                     "continuation": self.continue_resolving_effects,
                 })
@@ -5396,6 +5444,19 @@ class GameEngine:
             self.send_event(self.make_error_event(player_id, "invalid_card", "Duplicate cards chosen."))
             return False
 
+        # two_tone_color_pc: Check if different colors requirement is met
+        if self.current_decision.get("requirement_different_colors", False):
+            # Get all colors from chosen cards
+            all_colors = set()
+            for card_id in chosen_cards:
+                card = self.find_card(card_id)
+                all_colors.update(card["colors"])
+            
+            # Check if we have at least 2 different colors
+            if len(all_colors) < 2:
+                self.send_event(self.make_error_event(player_id, "invalid_colors", "Must choose holomems with different colors."))
+                return False
+
         return True
 
     def handle_effect_resolution_choose_cards_for_effect(self, player_id:str, action_data:dict):
@@ -5660,6 +5721,10 @@ class GameEngine:
                     self.choose_cards_cleanup_remaining(performing_player_id, remaining_card_ids, remaining_cards_action, from_zone, from_zone, continuation),
             }
             self.do_effect(player, attach_effect)
+        elif from_zone == "stage" and to_zone == "stage":
+            # Special handling for stage selection (two_tone_color_pc)
+            # Don't move cards, just select them and continue with remaining cards cleanup
+            self.choose_cards_cleanup_remaining(performing_player_id, remaining_card_ids, remaining_cards_action, from_zone, from_zone, continuation)
         elif to_zone in ["backstage", "stage"]:
             # Determine possible options (backstage, center, collab) depending on what's open.
             if len(card_ids) == 0:

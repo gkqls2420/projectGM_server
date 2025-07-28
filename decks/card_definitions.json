@@ -10493,6 +10493,65 @@
     },
 
     {
+        "NOTE": "BP2 CARDS START",
+
+        "card_id": "hBP04-089",
+        "card_type": "support",
+        "sub_type": "item",
+        "card_names": ["two_tone_color_pc"],
+        "colors": [],
+        "rarity": "u",
+        "limited": true,
+        "play_conditions": [
+            {
+                "condition": "monocolor_different_colors_on_stage"
+            }
+        ],
+        "effects": [
+            {
+                "effect_type": "choose_cards",
+                "from": "stage",
+                "destination": "stage",
+                "amount_min": 2,
+                "amount_max": 2,
+                "requirement": "holomem",
+                "requirement_monocolor_only": true,
+                "requirement_different_colors": true,
+                "reveal_chosen": true,
+                "remaining_cards_action": "nothing"
+            },
+            {
+                "effect_type": "choose_cards",
+                "from": "deck",
+                "look_at": -1,
+                "destination": "hand",
+                "amount_min": 1,
+                "amount_max": 1,
+                "requirement": "holomem_bloom",
+                "requirement_bloom_levels": [1],
+                "requirement_buzz_blocked": true,
+                "requirement_match_selected_holomem_color": 0,
+                "reveal_chosen": true,
+                "remaining_cards_action": "nothing"
+            },
+            {
+                "effect_type": "choose_cards",
+                "from": "deck",
+                "look_at": -1,
+                "destination": "hand",
+                "amount_min": 1,
+                "amount_max": 1,
+                "requirement": "holomem_bloom",
+                "requirement_bloom_levels": [1],
+                "requirement_buzz_blocked": true,
+                "requirement_match_selected_holomem_color": 1,
+                "reveal_chosen": true,
+                "remaining_cards_action": "shuffle"
+            }
+        ]
+    },
+
+    {
         "NOTE": "PR CARDS START",
 
         "card_id": "hBD24-001",
