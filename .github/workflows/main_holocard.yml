@@ -59,10 +59,10 @@ jobs:
       - name: Unzip artifact for deployment
         run: unzip release.zip
 
-      - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v2
-        id: deploy-to-webapp
-        with:
-          app-name: 'holocard'
-          slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_B7E73B530DED4D139EFDE194C9179590 }}
+#      - name: 'Deploy to Azure Web App'
+#        uses: azure/webapps-deploy@v2
+#        id: deploy-to-webapp
+#        with:
+#          app-name: 'holocard'
+#          slot-name: 'Production'
+#          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_B7E73B530DED4D139EFDE194C9179590 }}
