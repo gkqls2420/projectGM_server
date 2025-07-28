@@ -187,63 +187,10 @@ class AIPlayer:
         cards_can_choose : list = event["cards_can_choose"]
         amount_min = event.get("amount_min", 1)
         amount_max = event.get("amount_max", 1)
-        requirement_different_colors = event.get("requirement_different_colors", False)
-        
         chosen_cards = []
-        
-        # If we need different colors, try to select cards with different colors
-        if requirement_different_colors and amount_max >= 2:
-            # Get card colors for smart selection
-            from app.card_database import CardDatabase
-            card_db = CardDatabase()
-            
-            available_colors = set()
-            cards_by_color = {}
-            
-            for card_id in cards_can_choose:
-                card = card_db.get_card_by_id(card_id)
-                if card:
-                    for color in card["colors"]:
-                        if color not in cards_by_color:
-                            cards_by_color[color] = []
-                        cards_by_color[color].append(card_id)
-                        available_colors.add(color)
-            
-            # Try to pick cards with different colors
-            used_colors = set()
-            remaining_cards = cards_can_choose[:]
-            
-            for i in range(min(amount_max, len(available_colors))):
-                # Find a card with a color we haven't used yet
-                selected_card = None
-                for card_id in remaining_cards:
-                    card = card_db.get_card_by_id(card_id)
-                    if card and not any(color in used_colors for color in card["colors"]):
-                        selected_card = card_id
-                        used_colors.update(card["colors"])
-                        break
-                
-                if selected_card:
-                    chosen_cards.append(selected_card)
-                    remaining_cards.remove(selected_card)
-                else:
-                    # If we can't find a card with new colors, just pick randomly
-                    if remaining_cards:
-                        random_card = remaining_cards[random.randint(0, len(remaining_cards) - 1)]
-                        chosen_cards.append(random_card)
-                        remaining_cards.remove(random_card)
-            
-            # Fill up to amount_max with random remaining cards if needed
-            while len(chosen_cards) < amount_max and remaining_cards:
-                random_card = remaining_cards[random.randint(0, len(remaining_cards) - 1)]
-                chosen_cards.append(random_card)
-                remaining_cards.remove(random_card)
-        else:
-            # Original random selection logic
-            remaining_cards = cards_can_choose[:]
-            for i in range(min(amount_max, len(remaining_cards))):
-                random_value = random.randint(0, len(remaining_cards) - 1)
-                chosen_cards.append(remaining_cards.pop(random_value))
+        for i in range(amount_max):
+            random_value = random.randint(0, len(cards_can_choose) - 1)
+            chosen_cards.append(cards_can_choose.pop(random_value))
 
         return True, event["desired_response"], {
             "card_ids": chosen_cards

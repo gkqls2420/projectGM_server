@@ -10052,6 +10052,30 @@
         ]
     },
     {
+        "card_id": "hBP02-077",
+        "card_type": "support",
+        "sub_type": "item",
+        "colors": [],
+        "card_names": ["retro_computer"],
+        "rarity": "c",
+        "alt_id": "hBP02-077",
+        "limited": true,
+        "play_conditions": [{ "condition": "life_at_most", "amount": 3 }],
+        "effects": [
+            {
+                "effect_type": "choose_cards",
+                "from": "archive",
+                "look_at": -1,
+                "destination": "hand",
+                "amount_min": 1,
+                "amount_max": 1,
+                "requirement": "holomem",
+                "reveal_chosen": true,
+                "remaining_cards_action": "nothing"
+            }
+        ]
+    },
+    {
         "card_id": "hBP02-078",
         "card_type": "support",
         "sub_type": "event",

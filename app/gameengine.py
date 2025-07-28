@@ -162,6 +162,7 @@ class Condition:
     Condition_TopDeckCardHasAnyCardType = "top_deck_has_any_card_type"
     Condition_TopDeckCardHasAnyTag = "top_deck_card_has_any_tag"
     Condition_ColorOnStage = "color_on_stage"
+    Condition_LifeAtMost = "life_at_most"
     Condition_MonocolorDifferentColorsOnStage = "monocolor_different_colors_on_stage"
 
 
@@ -1435,6 +1436,7 @@ class GameEngine:
         self.remove_downed_holomems_to_hand = False
         self.after_damage_state : AfterDamageState = None
         self.last_chosen_cards = []
+        self.stage_selected_holomems = []
         self.last_card_count = 0
         self.next_life_loss_modifier = 0
         self.current_clock_player_id = None
@@ -2546,6 +2548,8 @@ class GameEngine:
 
             continuation = self.effect_resolution_state.effect_resolution_continuation
             self.effect_resolution_state = None
+            # Clear stage_selected_holomems when effect resolution is complete
+            self.stage_selected_holomems = []
             if not self.is_game_over():
                 continuation()
             return
@@ -2938,6 +2942,9 @@ class GameEngine:
                 holomems = effect_player.get_holomem_on_stage()
                 condition_colors = condition["condition_colors"]
                 return any(True for color in condition_colors for holomem in holomems if color in holomem["colors"])
+            case Condition.Condition_LifeAtMost:
+                amount = condition["amount"]
+                return len(effect_player.life) <= amount
             case Condition.Condition_MonocolorDifferentColorsOnStage:
                 # Check if stage has at least one monocolor holomem and at least 2 different colors
                 holomems = effect_player.get_holomem_on_stage()
@@ -3511,9 +3518,9 @@ class GameEngine:
 
                     # two_tone_color_pc: Filter to match colors of previously selected holomems
                     if requirement_match_selected_holomem_color is not None:
-                        # Get the colors of the specified previously selected holomem
-                        if requirement_match_selected_holomem_color < len(self.last_chosen_cards):
-                            selected_card_id = self.last_chosen_cards[requirement_match_selected_holomem_color]
+                        # Get the colors of the specified previously selected holomem from stage selection
+                        if requirement_match_selected_holomem_color < len(self.stage_selected_holomems):
+                            selected_card_id = self.stage_selected_holomems[requirement_match_selected_holomem_color]
                             selected_card = self.find_card(selected_card_id)
                             selected_colors = selected_card["colors"]
                             # Include cards that have any color in common with the selected holomem
@@ -5723,6 +5730,8 @@ class GameEngine:
             self.do_effect(player, attach_effect)
         elif from_zone == "stage" and to_zone == "stage":
             # Special handling for stage selection (two_tone_color_pc)
+            # Store the selected stage holomems for later use in deck searches
+            self.stage_selected_holomems = card_ids.copy()
             # Don't move cards, just select them and continue with remaining cards cleanup
             self.choose_cards_cleanup_remaining(performing_player_id, remaining_card_ids, remaining_cards_action, from_zone, from_zone, continuation)
         elif to_zone in ["backstage", "stage"]:
