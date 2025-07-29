@@ -7,31 +7,154 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# AI가 사용할 덱 파일 이름 설정
-AI_DECK_NAME = "whale"
+# AI가 사용할 덱 설정 (환경 변수 우선, 기본값은 whale)
+AI_DECK_NAME = os.getenv("AI_DECK_NAME", "whale")
 
-def load_ai_deck(deck_name="whale"):
-    """덱 파일에서 AI 덱을 로드합니다"""
-    decks_path = os.path.join(os.path.dirname(__file__), "..", "decks")
-    deck_file = os.path.join(decks_path, f"{deck_name}.json")
+def load_ai_deck(deck_name=None):
+    """덱 파일에서 AI 덱을 로드합니다. Railway 환경에서도 안전하게 작동합니다."""
+    if deck_name is None:
+        deck_name = AI_DECK_NAME
     
-    if os.path.exists(deck_file):
-        try:
-            with open(deck_file, "r") as f:
-                deck_data = json.load(f)
-            
-            # HoloDelta 형식인지 확인
-            if "cheerDeck" in deck_data:
-                return convert_holodelta_to_simple_format(deck_data)
-            else:
-                # 이미 단순 형식인 경우
-                return deck_data
-        except Exception as e:
-            logger.error(f"Failed to load AI deck {deck_name}: {e}")
-            return get_default_ai_deck()
-    else:
-        logger.warning(f"AI deck file {deck_name}.json not found, using default deck")
-        return get_default_ai_deck()
+    logger.info(f"Attempting to load AI deck: {deck_name}")
+    
+    # 1. 먼저 내장 덱 목록 확인
+    builtin_decks = get_builtin_decks()
+    if deck_name in builtin_decks:
+        logger.info(f"Using builtin deck: {deck_name}")
+        return builtin_decks[deck_name]
+    
+    # 2. 파일 시스템에서 덱 로드 시도
+    deck_data = try_load_deck_from_file(deck_name)
+    if deck_data:
+        return deck_data
+    
+    # 3. 모든 시도 실패 시 기본 덱 사용
+    logger.warning(f"Failed to load deck '{deck_name}', using default deck")
+    return get_default_ai_deck()
+
+def try_load_deck_from_file(deck_name):
+    """파일 시스템에서 덱을 로드하려고 시도합니다."""
+    try:
+        # 여러 가능한 경로 시도
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), "..", "decks", f"{deck_name}.json"),
+            os.path.join(os.getcwd(), "decks", f"{deck_name}.json"),
+            os.path.join(os.path.dirname(__file__), "..", "..", "decks", f"{deck_name}.json"),
+        ]
+        
+        for deck_file in possible_paths:
+            if os.path.exists(deck_file):
+                logger.info(f"Found deck file at: {deck_file}")
+                try:
+                    with open(deck_file, "r", encoding='utf-8') as f:
+                        deck_data = json.load(f)
+                    
+                    # HoloDelta 형식인지 확인
+                    if "cheerDeck" in deck_data:
+                        converted_deck = convert_holodelta_to_simple_format(deck_data)
+                        logger.info(f"Successfully loaded and converted deck: {deck_name}")
+                        return converted_deck
+                    else:
+                        logger.info(f"Successfully loaded deck: {deck_name}")
+                        return deck_data
+                        
+                except Exception as e:
+                    logger.error(f"Failed to load deck file {deck_file}: {e}")
+                    continue
+        
+        logger.warning(f"Deck file {deck_name}.json not found in any expected location")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Unexpected error while loading deck {deck_name}: {e}")
+        return None
+
+def get_builtin_decks():
+    """내장 덱들을 반환합니다. 파일 시스템에 의존하지 않습니다."""
+    return {
+        "whale": {
+            "deck_id": "Whale",
+            "oshi_id": "hBP01-001",
+            "deck": {
+                "hBP01-012": 4,
+                "hBP01-013": 4,
+                "hBP01-009": 10,
+                "hBP01-010": 1,
+                "hBP01-014": 1,
+                "hBP02-035": 2,
+                "hBP02-038": 4,
+                "hSD01-016": 4,
+                "hSD01-017": 2,
+                "hBP01-104": 4,
+                "hBP02-084": 4,
+                "hSD01-018": 2,
+                "hBP02-079": 2,
+                "hBP01-114": 3,
+                "hBP01-116": 3
+            },
+            "cheer_deck": {
+                "hY01-001": 20
+            }
+        },
+        "starter_azki": {
+            "deck_id": "starter_azki",
+            "oshi_id": "hSD01-002",
+            "deck": {
+                "hSD01-003": 4,
+                "hSD01-004": 3,
+                "hSD01-005": 3,
+                "hSD01-006": 2,
+                "hSD01-007": 2,
+                "hSD01-008": 4,
+                "hSD01-009": 3,
+                "hSD01-010": 3,
+                "hSD01-011": 2,
+                "hSD01-012": 2,
+                "hSD01-013": 2,
+                "hSD01-014": 2,
+                "hSD01-015": 2,
+                "hSD01-016": 3,
+                "hSD01-017": 3,
+                "hSD01-018": 3,
+                "hSD01-019": 3,
+                "hSD01-020": 2,
+                "hSD01-021": 2
+            },
+            "cheer_deck": {
+                "hY01-001": 10,
+                "hY02-001": 10
+            }
+        },
+        "starter_sora": {
+            "deck_id": "starter_sora",
+            "oshi_id": "hSD01-001",
+            "deck": {
+                "hSD01-003": 4,
+                "hSD01-004": 3,
+                "hSD01-005": 3,
+                "hSD01-006": 2,
+                "hSD01-007": 2,
+                "hSD01-008": 4,
+                "hSD01-009": 3,
+                "hSD01-010": 3,
+                "hSD01-011": 2,
+                "hSD01-012": 2,
+                "hSD01-013": 2,
+                "hSD01-014": 2,
+                "hSD01-015": 2,
+                "hSD01-016": 3,
+                "hSD01-017": 3,
+                "hSD01-018": 3,
+                "hSD01-019": 3,
+                "hSD01-020": 2,
+                "hSD01-021": 2
+            },
+            "cheer_deck": {
+                "hY01-001": 10,
+                "hY02-001": 10
+            }
+        }
+    }
 
 def convert_holodelta_to_simple_format(holodelta_deck):
     """HoloDelta 형식의 덱을 단순 형식으로 변환합니다"""
@@ -81,35 +204,7 @@ def convert_holodelta_to_simple_format(holodelta_deck):
 
 def get_default_ai_deck():
     """기본 AI 덱을 반환합니다"""
-    return {
-        "deck_id": "starter_azki",
-        "oshi_id": "hSD01-002",
-        "deck": {
-            "hSD01-003": 4,
-            "hSD01-004": 3,
-            "hSD01-005": 3,
-            "hSD01-006": 2,
-            "hSD01-007": 2,
-            "hSD01-008": 4,
-            "hSD01-009": 3,
-            "hSD01-010": 3,
-            "hSD01-011": 2,
-            "hSD01-012": 2,
-            "hSD01-013": 2,
-            "hSD01-014": 2,
-            "hSD01-015": 2,
-            "hSD01-016": 3,
-            "hSD01-017": 3,
-            "hSD01-018": 3,
-            "hSD01-019": 3,
-            "hSD01-020": 2,
-            "hSD01-021": 2
-        },
-        "cheer_deck": {
-            "hY01-001": 10,
-            "hY02-001": 10
-        }
-    }
+    return get_builtin_decks()["starter_azki"]
 
 # AI 덱을 동적으로 로드
 DefaultAIDeck = load_ai_deck(AI_DECK_NAME)
