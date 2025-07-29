@@ -97,33 +97,33 @@ def get_builtin_decks():
             }
         },
         "starter_azki": {
-            "deck_id": "starter_azki",
-            "oshi_id": "hSD01-002",
-            "deck": {
-                "hSD01-003": 4,
-                "hSD01-004": 3,
-                "hSD01-005": 3,
-                "hSD01-006": 2,
-                "hSD01-007": 2,
-                "hSD01-008": 4,
-                "hSD01-009": 3,
-                "hSD01-010": 3,
-                "hSD01-011": 2,
-                "hSD01-012": 2,
-                "hSD01-013": 2,
-                "hSD01-014": 2,
-                "hSD01-015": 2,
-                "hSD01-016": 3,
-                "hSD01-017": 3,
-                "hSD01-018": 3,
-                "hSD01-019": 3,
-                "hSD01-020": 2,
-                "hSD01-021": 2
-            },
-            "cheer_deck": {
-                "hY01-001": 10,
-                "hY02-001": 10
-            }
+    "deck_id": "starter_azki",
+    "oshi_id": "hSD01-002",
+    "deck": {
+        "hSD01-003": 4,
+        "hSD01-004": 3,
+        "hSD01-005": 3,
+        "hSD01-006": 2,
+        "hSD01-007": 2,
+        "hSD01-008": 4,
+        "hSD01-009": 3,
+        "hSD01-010": 3,
+        "hSD01-011": 2,
+        "hSD01-012": 2,
+        "hSD01-013": 2,
+        "hSD01-014": 2,
+        "hSD01-015": 2,
+        "hSD01-016": 3,
+        "hSD01-017": 3,
+        "hSD01-018": 3,
+        "hSD01-019": 3,
+        "hSD01-020": 2,
+        "hSD01-021": 2
+    },
+    "cheer_deck": {
+        "hY01-001": 10,
+        "hY02-001": 10
+    }
         },
         "starter_sora": {
             "deck_id": "starter_sora",
@@ -361,10 +361,12 @@ class AIPlayer:
         cards_can_choose : list = event["cards_can_choose"]
         amount_min = event.get("amount_min", 1)
         amount_max = event.get("amount_max", 1)
+        
+        # 게임 엔진에서 제공하는 순서를 그대로 사용 (이미 center > collab > backstage 순서)
         chosen_cards = []
-        for i in range(amount_max):
-            random_value = random.randint(0, len(cards_can_choose) - 1)
-            chosen_cards.append(cards_can_choose.pop(random_value))
+        # 요청된 수만큼 순서대로 선택
+        for i in range(min(amount_max, len(cards_can_choose))):
+            chosen_cards.append(cards_can_choose[i])
 
         return True, event["desired_response"], {
             "card_ids": chosen_cards
