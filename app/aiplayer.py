@@ -2,38 +2,117 @@ from typing import Dict
 from app.gameengine import EventType, GameAction
 import random
 import logging
+import json
+import os
 
 logger = logging.getLogger(__name__)
 
-DefaultAIDeck = {
-    "deck_id": "starter_azki",
-    "oshi_id": "hSD01-002",
-    "deck": {
-        "hSD01-003": 4,
-        "hSD01-004": 3,
-        "hSD01-005": 3,
-        "hSD01-006": 2,
-        "hSD01-007": 2,
-        "hSD01-008": 4,
-        "hSD01-009": 3,
-        "hSD01-010": 3,
-        "hSD01-011": 2,
-        "hSD01-012": 2,
-        "hSD01-013": 2,
-        "hSD01-014": 2,
-        "hSD01-015": 2,
-        "hSD01-016": 3,
-        "hSD01-017": 3,
-        "hSD01-018": 3,
-        "hSD01-019": 3,
-        "hSD01-020": 2,
-        "hSD01-021": 2
-    },
-    "cheer_deck": {
-        "hY01-001": 10,
-        "hY02-001": 10
+# AI가 사용할 덱 파일 이름 설정
+AI_DECK_NAME = "whale"
+
+def load_ai_deck(deck_name="whale"):
+    """덱 파일에서 AI 덱을 로드합니다"""
+    decks_path = os.path.join(os.path.dirname(__file__), "..", "decks")
+    deck_file = os.path.join(decks_path, f"{deck_name}.json")
+    
+    if os.path.exists(deck_file):
+        try:
+            with open(deck_file, "r") as f:
+                deck_data = json.load(f)
+            
+            # HoloDelta 형식인지 확인
+            if "cheerDeck" in deck_data:
+                return convert_holodelta_to_simple_format(deck_data)
+            else:
+                # 이미 단순 형식인 경우
+                return deck_data
+        except Exception as e:
+            logger.error(f"Failed to load AI deck {deck_name}: {e}")
+            return get_default_ai_deck()
+    else:
+        logger.warning(f"AI deck file {deck_name}.json not found, using default deck")
+        return get_default_ai_deck()
+
+def convert_holodelta_to_simple_format(holodelta_deck):
+    """HoloDelta 형식의 덱을 단순 형식으로 변환합니다"""
+    simple_deck = {
+        "deck_id": holodelta_deck.get("deckName", "unknown"),
+        "oshi_id": "",
+        "deck": {},
+        "cheer_deck": {}
     }
-}
+    
+    # Oshi 처리
+    if "oshi" in holodelta_deck and len(holodelta_deck["oshi"]) >= 2:
+        oshi_id = holodelta_deck["oshi"][0]
+        oshi_alt = holodelta_deck["oshi"][1]
+        if oshi_alt > 0:
+            # 대체 아트가 있는 경우 처리 (간단히 원본 ID 사용)
+            simple_deck["oshi_id"] = oshi_id
+        else:
+            simple_deck["oshi_id"] = oshi_id
+    
+    # 메인 덱 처리
+    if "deck" in holodelta_deck:
+        for card_entry in holodelta_deck["deck"]:
+            if len(card_entry) >= 2:
+                card_id = card_entry[0]
+                card_count = card_entry[1]
+                card_alt = card_entry[2] if len(card_entry) > 2 else 0
+                
+                # 대체 아트가 있는 경우 처리 (간단히 원본 ID 사용)
+                if card_alt > 0:
+                    # 실제로는 대체 아트 ID를 생성해야 하지만, 여기서는 원본 사용
+                    final_card_id = card_id
+                else:
+                    final_card_id = card_id
+                
+                simple_deck["deck"][final_card_id] = card_count
+    
+    # 치어 덱 처리
+    if "cheerDeck" in holodelta_deck:
+        for cheer_entry in holodelta_deck["cheerDeck"]:
+            if len(cheer_entry) >= 2:
+                cheer_id = cheer_entry[0]
+                cheer_count = cheer_entry[1]
+                simple_deck["cheer_deck"][cheer_id] = cheer_count
+    
+    return simple_deck
+
+def get_default_ai_deck():
+    """기본 AI 덱을 반환합니다"""
+    return {
+        "deck_id": "starter_azki",
+        "oshi_id": "hSD01-002",
+        "deck": {
+            "hSD01-003": 4,
+            "hSD01-004": 3,
+            "hSD01-005": 3,
+            "hSD01-006": 2,
+            "hSD01-007": 2,
+            "hSD01-008": 4,
+            "hSD01-009": 3,
+            "hSD01-010": 3,
+            "hSD01-011": 2,
+            "hSD01-012": 2,
+            "hSD01-013": 2,
+            "hSD01-014": 2,
+            "hSD01-015": 2,
+            "hSD01-016": 3,
+            "hSD01-017": 3,
+            "hSD01-018": 3,
+            "hSD01-019": 3,
+            "hSD01-020": 2,
+            "hSD01-021": 2
+        },
+        "cheer_deck": {
+            "hY01-001": 10,
+            "hY02-001": 10
+        }
+    }
+
+# AI 덱을 동적으로 로드
+DefaultAIDeck = load_ai_deck(AI_DECK_NAME)
 
 
 class AIPlayer:
