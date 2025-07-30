@@ -77,6 +77,7 @@ class EffectType:
     EffectType_PowerBoostPerRevealedCard = "power_boost_per_revealed_card"
     EffectType_PowerBoostPerStacked = "power_boost_per_stacked"
     EffectType_PowerBoostPerPlayedSupport = "power_boost_per_played_support"
+    EffectType_PowerBoostPerCondition = "power_boost_per_condition"
     EffectType_RecordEffectCardIdUsedThisTurn = "record_effect_card_id_used_this_turn"
     EffectType_RecordLastDieResult = "record_last_die_result"
     EffectType_RecordUsedOncePerGameEffect = "record_used_once_per_game_effect"
@@ -164,6 +165,7 @@ class Condition:
     Condition_ColorOnStage = "color_on_stage"
     Condition_LifeAtMost = "life_at_most"
     Condition_MonocolorDifferentColorsOnStage = "monocolor_different_colors_on_stage"
+    Condition_OpponentBackstageHpReducedCount = "opponent_backstage_hp_reduced_count"
 
 
 class TurnEffectType:
@@ -385,7 +387,6 @@ class EffectResolutionState:
         self.simultaneous_choice = simultaneous_choice
 
         self.simultaneous_choice_index = -1
-
 class PlayerState:
     def __init__(self, card_db:CardDatabase, player_info:Dict[str, Any], engine: 'GameEngine'):
         self.engine = engine
@@ -1162,7 +1163,6 @@ class PlayerState:
         card, _, _ = self.find_card(card_id, include_stacked_cards=True)
         action = next(action for action in card["special_actions"] if action["effect_id"] == effect_id)
         return deepcopy(action["effects"])
-
     def find_and_remove_attached(self, attached_id):
         previous_holder_id = None
         found_card = None
@@ -1870,7 +1870,6 @@ class GameEngine:
         else:
             # No cheer left!
             self.begin_main_step()
-
     def get_available_mainstep_actions(self):
         active_player = self.get_player(self.active_player_id)
 
@@ -2598,7 +2597,6 @@ class GameEngine:
            if not self.is_condition_met(effect_player, source_card_id, condition):
                return False
         return True
-
     def is_condition_met(self, effect_player: PlayerState, source_card_id, condition):
         match condition["condition"]:
             case Condition.Condition_AnyTagHolomemHasCheer:
@@ -2961,10 +2959,38 @@ class GameEngine:
                     all_colors.update(holomem["colors"])
                 
                 return len(all_colors) >= 2
+            case Condition.Condition_OpponentBackstageHpReducedCount:
+                # 상대방 백스테이지에서 HP가 감소된 홀로멤이 있는지 확인 (boolean 반환)
+                opponent_player = self.other_player(effect_player.player_id)
+                for holomem in opponent_player.backstage:
+                    damage = holomem.get("damage", 0)
+                    if damage > 0:
+                        return True
+                return False
             case _:
                 raise NotImplementedError(f"Unimplemented condition: {condition['condition']}")
         return False
-
+    def get_condition_count(self, effect_player: PlayerState, source_card_id, condition_type):
+        """조건에 따른 카운트를 반환하는 함수 (power_boost_per_condition용)"""
+        match condition_type:
+            case Condition.Condition_OpponentBackstageHpReducedCount:
+                # 상대방 백스테이지에서 HP가 감소된 홀로멤의 수를 반환
+                opponent_player = self.other_player(effect_player.player_id)
+                reduced_count = 0
+                print(f"DEBUG: Checking opponent backstage for HP reduced holomems")
+                print(f"DEBUG: Opponent backstage count: {len(opponent_player.backstage)}")
+                for holomem in opponent_player.backstage:
+                    damage = holomem.get("damage", 0)
+                    print(f"DEBUG: Holomem {holomem.get('card_id', 'unknown')} - Damage: {damage}")
+                    if damage > 0:
+                        reduced_count += 1
+                        print(f"DEBUG: Found damaged holomem! Count: {reduced_count}")
+                print(f"DEBUG: Final reduced count: {reduced_count}")
+                return reduced_count
+            case _:
+                # 기본적으로는 is_condition_met의 결과를 boolean에서 int로 변환
+                result = self.is_condition_met(effect_player, source_card_id, {"condition": condition_type})
+                return 1 if result else 0
     def do_effect(self, effect_player : PlayerState, effect):
         effect_player_id = effect_player.player_id
         if "pre_effects" in effect:
@@ -3616,6 +3642,8 @@ class GameEngine:
                 if multiple_targets:
                     if str(multiple_targets) == "all":
                         targets_allowed = len(target_cards)
+                    elif str(multiple_targets) == "sequential":
+                        targets_allowed = 1  # sequential의 경우 정수로 설정
                     else:
                         targets_allowed = multiple_targets
                 if targets_allowed > len(target_cards):
@@ -3625,6 +3653,21 @@ class GameEngine:
                 target_cards = [card for card in target_cards if card["damage"] < target_player.get_card_hp(card)]
                 if len(target_cards) == 0:
                     pass
+                elif multiple_targets == "sequential":
+                    # 순차적 대미지 처리
+                    repeat_count = effect.get("repeat", 1)
+                    for i in range(repeat_count):
+                        if len(target_cards) > 0:
+                            target_card = target_cards[i % len(target_cards)]
+                            self.add_deal_damage_internal_effect(
+                                source_player,
+                                target_player,
+                                effect["source_card_id"],
+                                target_card,
+                                amount,
+                                special,
+                                prevent_life_loss
+                            )
                 elif len(target_cards) == targets_allowed:
                     target_cards.reverse()
                     for i in range(targets_allowed):
@@ -3639,31 +3682,37 @@ class GameEngine:
                         )
                 else:
                     # Player gets to choose.
-                    # Choose holomem for effect.
-                    target_options = ids_from_cards(target_cards)
-                    decision_event = {
-                        "event_type": EventType.EventType_Decision_ChooseHolomemForEffect,
-                        "desired_response": GameAction.EffectResolution_ChooseCardsForEffect,
-                        "effect_player_id": effect_player_id,
-                        "cards_can_choose": target_options,
-                        "amount_min": targets_allowed,
-                        "amount_max": targets_allowed,
-                        "effect": effect,
-                    }
-                    self.broadcast_event(decision_event)
-                    self.set_decision({
-                        "decision_type": DecisionType.DecisionEffect_ChooseCardsForEffect,
-                        "decision_player": effect_player_id,
-                        "all_card_seen": target_options,
-                        "cards_can_choose": target_options,
-                        "amount_min": targets_allowed,
-                        "amount_max": targets_allowed,
-                        "effect_resolution": self.handle_deal_damage_to_holomem,
-                        "effect": effect,
-                        "source_card_id": effect["source_card_id"],
-                        "target_player": target_player,
-                        "continuation": self.continue_resolving_effects,
-                    })
+                    # Check if repeat is needed
+                    repeat_count = effect.get("repeat", 1)
+                    if repeat_count > 1:
+                        # Use repeat damage selection for multiple iterations
+                        self.handle_repeat_damage_selection(effect_player_id, effect, target_cards, targets_allowed, repeat_count, target_player, source_player)
+                    else:
+                        # Single selection - use normal flow
+                        target_options = ids_from_cards(target_cards)
+                        decision_event = {
+                            "event_type": EventType.EventType_Decision_ChooseHolomemForEffect,
+                            "desired_response": GameAction.EffectResolution_ChooseCardsForEffect,
+                            "effect_player_id": effect_player_id,
+                            "cards_can_choose": target_options,
+                            "amount_min": targets_allowed,
+                            "amount_max": targets_allowed,
+                            "effect": effect,
+                        }
+                        self.broadcast_event(decision_event)
+                        self.set_decision({
+                            "decision_type": DecisionType.DecisionEffect_ChooseCardsForEffect,
+                            "decision_player": effect_player_id,
+                            "all_card_seen": target_options,
+                            "cards_can_choose": target_options,
+                            "amount_min": targets_allowed,
+                            "amount_max": targets_allowed,
+                            "effect_resolution": self.handle_deal_damage_to_holomem,
+                            "effect": effect,
+                            "source_card_id": effect["source_card_id"],
+                            "target_player": target_player,
+                            "continuation": self.continue_resolving_effects,
+                        })
             case EffectType.EffectType_DealDamage_Internal:
                 source_player : PlayerState = effect["source_player"]
                 target_player = effect["target_player"]
@@ -4036,6 +4085,15 @@ class GameEngine:
                 sub_type = effect["support_sub_type"]
                 num_played = effect_player.played_support_types_this_turn.get(sub_type, 0)
                 total = per_amount * num_played
+                self.handle_power_boost(total, effect["source_card_id"])
+            case EffectType.EffectType_PowerBoostPerCondition:
+                amount_per = effect["amount_per"]
+                per_condition = effect["per"]
+                print(f"DEBUG: PowerBoostPerCondition - amount_per: {amount_per}, per_condition: {per_condition}")
+                # 조건에 따라 카운트를 계산
+                condition_count = self.get_condition_count(effect_player, effect["source_card_id"], per_condition)
+                total = amount_per * condition_count
+                print(f"DEBUG: PowerBoostPerCondition - condition_count: {condition_count}, total: {total}")
                 self.handle_power_boost(total, effect["source_card_id"])
             case EffectType.EffectType_RecordEffectCardIdUsedThisTurn:
                 effect_player.record_card_effect_used_this_turn(effect["source_card_id"])
@@ -5273,7 +5331,6 @@ class GameEngine:
                 return False
 
         return True
-
     def handle_main_step_baton_pass(self, player_id:str, action_data:dict):
         if not self.validate_main_step_baton_pass(player_id, action_data):
             return False
@@ -5921,3 +5978,89 @@ class GameEngine:
             if self.holomem_can_be_attached_with_support_card(holomem, card):
                 return True
         return False
+
+    def handle_repeat_damage_selection(self, effect_player_id, effect, target_cards, targets_allowed, repeat_count, target_player, source_player):
+        # Start the first iteration of repeat damage selection
+        self.handle_repeat_damage_target(effect_player_id, effect, target_cards, targets_allowed, repeat_count, target_player, source_player, 1)
+
+    def handle_repeat_damage_target(self, effect_player_id, effect, target_cards, targets_allowed, repeat_count, target_player, source_player, current_repeat):
+        # Filter out cards that are already at max damage
+        available_targets = [card for card in target_cards if card["damage"] < target_player.get_card_hp(card)]
+        
+        if len(available_targets) == 0 or current_repeat > repeat_count:
+            # No more targets or all repeats done
+            self.continue_resolving_effects()
+            return
+
+        # Player chooses target for this iteration
+        target_options = ids_from_cards(available_targets)
+        decision_event = {
+            "event_type": EventType.EventType_Decision_ChooseHolomemForEffect,
+            "desired_response": GameAction.EffectResolution_ChooseCardsForEffect,
+            "effect_player_id": effect_player_id,
+            "cards_can_choose": target_options,
+            "amount_min": targets_allowed,
+            "amount_max": targets_allowed,
+            "effect": effect,
+        }
+        self.broadcast_event(decision_event)
+        self.set_decision({
+            "decision_type": DecisionType.DecisionEffect_ChooseCardsForEffect,
+            "decision_player": effect_player_id,
+            "all_card_seen": target_options,
+            "cards_can_choose": target_options,
+            "amount_min": targets_allowed,
+            "amount_max": targets_allowed,
+            "effect_resolution": self.handle_repeat_damage_target_selection,
+            "effect": effect,
+            "source_card_id": effect["source_card_id"],
+            "target_player": target_player,
+            "source_player": source_player,
+            "target_cards": target_cards,
+            "targets_allowed": targets_allowed,
+            "repeat_count": repeat_count,
+            "current_repeat": current_repeat,
+            "continuation": self.continue_resolving_effects,
+        })
+
+    def handle_repeat_damage_target_selection(self, decision_info_copy, performing_player_id:str, card_ids:List[str], continuation):
+        # Apply damage for this iteration
+        effect = decision_info_copy["effect"]
+        source_player = decision_info_copy["source_player"]
+        target_player = decision_info_copy["target_player"]
+        source_card_id = decision_info_copy["source_card_id"]
+        current_repeat = decision_info_copy["current_repeat"]
+        repeat_count = decision_info_copy["repeat_count"]
+        target_cards = decision_info_copy["target_cards"]
+        targets_allowed = decision_info_copy["targets_allowed"]
+
+        # Apply damage to selected targets
+        card_ids.reverse()
+        for card_id in card_ids:
+            target_card, _, _ = target_player.find_card(card_id)
+            self.add_deal_damage_internal_effect(
+                source_player,
+                target_player,
+                source_card_id,
+                target_card,
+                effect["amount"],
+                effect.get("special", False),
+                effect.get("prevent_life_loss", False)
+            )
+
+        # Continue to next iteration or finish
+        if current_repeat < repeat_count:
+            # Continue to next repeat
+            self.handle_repeat_damage_target(
+                performing_player_id, 
+                effect, 
+                target_cards, 
+                targets_allowed, 
+                repeat_count, 
+                target_player, 
+                source_player, 
+                current_repeat + 1
+            )
+        else:
+            # All repeats done
+            self.continue_resolving_effects()

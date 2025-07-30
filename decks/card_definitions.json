@@ -11507,6 +11507,71 @@
         "colors": ["yellow"],
 
         "NOTE": "CHEER CARDS END"
+    },
+    {
+        "card_id": "hBP03-045",
+        "card_type": "holomem_bloom",
+        "bloom_level": 1,
+        "buzz": true,
+        "card_names": ["kobo_kanaeru"],
+        "rarity": "r",
+        "colors": ["blue"],
+        "hp": 230,
+        "baton_cost": 2,
+        "down_life_cost": 2,
+        "tags": [
+            "#ID",
+            "#IDGen3"
+        ],
+        "arts": [
+            {
+                "art_id": "full_of_energy",
+                "costs": [
+                    { "color": "blue", "amount": 1 },
+                    { "color": "any", "amount": 1 }
+                ],
+                "power": 40,
+                "art_effects": [
+                    {
+                        "timing": "before_art",
+                        "effect_type": "power_boost_per_condition",
+                        "amount_per": 10,
+                        "per": "opponent_backstage_hp_reduced_count"
+                    }
+                ]
+            }
+        ],
+        "bloom_effects": [
+            {
+                "conditions": [{ "condition": "any_tag_holomem_has_cheer", "condition_tags": ["#ID"] }],
+                "effect_type": "choice",
+                "choice": [
+                    {
+                        "effect_type": "send_cheer",
+                        "amount_min": 1,
+                        "amount_max": 1,
+                        "from": "holomem",
+                        "from_limitation": "tag_in",
+                        "from_limitation_tags": ["#ID"],
+                        "to": "archive",
+                        "ability_source": "holomem_blue",
+                        "and": [
+                                                            {
+                                    "effect_type": "deal_damage",
+                                    "special": true,
+                                    "amount": 10,
+                                    "target": "backstage",
+                                    "opponent": true,
+                                    "multiple_targets": 1,
+                                    "repeat": 3,
+                                    "prevent_life_loss": true
+                                }
+                        ]
+                    },
+                    { "effect_type": "pass" }
+                ]
+            }
+        ]
     }
 
 ]
