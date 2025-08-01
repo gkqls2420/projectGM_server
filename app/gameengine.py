@@ -220,6 +220,7 @@ class EventType:
     EventType_ShuffleDeck = "shuffle_deck"
     EventType_SpecialActionActivation = "special_action_activation"
     EventType_TurnStart = "turn_start"
+    EventType_Emote = "emote"
 
 class GameOverReason:
     GameOverReason_NoHolomemsLeft = "no_holomems_left"

@@ -249,6 +249,13 @@ async def websocket_endpoint(websocket: WebSocket):
                     check_cleanup_room(player_room)
                 else:
                     await send_error_message(websocket, "not_in_room", f"ERROR: Not in a game room to send a game message.")
+            
+            elif isinstance(message, message_types.EmoteMessage):
+                player_room : GameRoom = player.current_game_room
+                if player_room and not player_room.is_ready_for_cleanup():
+                    await player_room.handle_emote_message(player.player_id, message.emote_id)
+                else:
+                    await send_error_message(websocket, "not_in_room", f"ERROR: Not in a game room to send emote.")
             else:
                 await send_error_message(websocket, "invalid_game_message", f"ERROR: Invalid message: {data}")
 

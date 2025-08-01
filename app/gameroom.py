@@ -11,6 +11,10 @@ from app.dbaccess import upload_match_to_blob_storage
 import logging
 logger = logging.getLogger(__name__)
 
+# 감정표현 관련 상수
+EMOTE_COOLDOWN_MS = 2000  # 2초 쿨다운
+VALID_EMOTE_IDS = [0, 1, 2, 3, 4]  # 허용된 감정표현 ID
+
 class GameRoom:
     def __init__(self, room_id : str, room_name : str, players : List[Player], game_type : str, queue_name : str):
         self.room_id = room_id
@@ -21,6 +25,8 @@ class GameRoom:
         self.game_type = game_type
         self.queue_name = queue_name
         self.cleanup_room = False
+        # 감정표현 쿨다운 추적
+        self.player_emote_cooldowns = {}
         for player in self.players:
             player.current_game_room = self
 
@@ -129,6 +135,41 @@ class GameRoom:
                     match_data["queue_name"] = self.queue_name
                     upload_match_to_blob_storage(match_data)
             self.cleanup_room = True
+
+    async def handle_emote_message(self, player_id: str, emote_id: int):
+        """감정표현 메시지 처리"""
+        current_time = time.time() * 1000  # 밀리초 단위
+        
+        # 유효성 검증
+        if emote_id not in VALID_EMOTE_IDS:
+            logger.warning(f"Invalid emote_id {emote_id} from player {player_id}")
+            return
+        
+        # 쿨다운 검증
+        if player_id in self.player_emote_cooldowns:
+            last_emote_time = self.player_emote_cooldowns[player_id]
+            if current_time - last_emote_time < EMOTE_COOLDOWN_MS:
+                logger.info(f"Emote cooldown active for player {player_id}")
+                return
+        
+        # 쿨다운 업데이트
+        self.player_emote_cooldowns[player_id] = current_time
+        
+        # 감정표현 이벤트 생성 및 브로드캐스트
+        emote_event = {
+            "event_type": EventType.EventType_Emote,
+            "event_player_id": player_id,
+            "emote_id": emote_id,
+            "timestamp": current_time
+        }
+        
+        # 모든 플레이어와 관찰자에게 전송
+        all_participants = self.players + self.observers
+        for participant in all_participants:
+            if participant.connected:
+                await participant.send_game_event(emote_event)
+        
+        logger.info(f"Emote sent: player {player_id} sent emote {emote_id}")
 
     def is_ready_for_cleanup(self):
         return self.cleanup_room

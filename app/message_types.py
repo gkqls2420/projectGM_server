@@ -58,6 +58,10 @@ class GameActionMessage(Message):
     action_type: str
     action_data: Dict[str, Any]
 
+@dataclass
+class EmoteMessage(Message):
+    emote_id: int
+
 def parse_message(json_data: str) -> Message:
     data = json.loads(json_data)
     message_type = data.get("message_type")
@@ -77,5 +81,7 @@ def parse_message(json_data: str) -> Message:
             return ObserveRoomMessage(**data)
         case "observer_get_events":
             return ObserverGetEventsMessage(**data)
+        case "emote":
+            return EmoteMessage(**data)
         case _:
             raise ValueError(f"Unknown message type: {json_data}")
