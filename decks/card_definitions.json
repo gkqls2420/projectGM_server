@@ -10917,6 +10917,17 @@
                         "timing": "before_art",
                         "effect_type": "power_boost_per_stacked",
                         "amount": 20
+                    },
+                    {
+                        "timing": "before_art",
+                        "effect_type": "power_boost",
+                        "amount": 50,
+                        "conditions": [
+                            {
+                                "condition": "target_color",
+                                "color_requirement": "green"
+                            }
+                        ]
                     }
                 ]
             }
