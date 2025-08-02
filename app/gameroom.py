@@ -92,6 +92,13 @@ class GameRoom:
                 if player.connected:
                     await player.send_game_event(event)
 
+    async def send_emote_events(self, events):
+        """감정표현 이벤트를 모든 플레이어에게 전송"""
+        for event in events:
+            for player in self.players:
+                if player.connected:
+                    await player.send_game_event(event)
+
     async def handle_game_message(self, player_id: str, action_type:str, action_data: dict):
         for observer in self.observers:
             if player_id == observer.player_id:
@@ -160,7 +167,7 @@ class GameRoom:
         
         # 게임 엔진에서 생성된 이벤트들을 가져와서 브로드캐스트
         events = self.engine.grab_events()
-        await self.send_events(events)
+        await self.send_emote_events(events)  # 감정표현 전용 전송 메서드 사용
         observer_events = self.engine.grab_observer_events()
         await self.send_observer_events(observer_events)
         

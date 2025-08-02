@@ -5956,7 +5956,7 @@ class GameEngine:
             "emote_id": emote_id,
             "timestamp": time.time() * 1000
         }
-        self.send_event(emote_event)
+        self.broadcast_event(emote_event)
 
     def handle_power_boost(self, amount: int, source_card_id: str):
         if amount != 0:
