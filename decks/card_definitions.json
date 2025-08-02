@@ -10835,7 +10835,7 @@
         ],
         "arts": [
             {
-                "art_id": "bloom_effect",
+                "art_id": "imtheonewhobelongedtofubuki",
                 "costs": [
                     { "color": "green", "amount": 1 },
                     { "color": "any", "amount": 2 }
@@ -10885,6 +10885,56 @@
                         "required_member_name": "shirakami_fubuki"
                     }
                 ]
+            }
+        ]
+    },
+
+    {
+        "card_id": "hBP04-038",
+        "card_type": "holomem_bloom",
+        "bloom_level": 2,
+        "card_names": ["houshou_marine"],
+        "rarity": "r",
+        "colors": ["red"],
+        "hp": 200,
+        "baton_cost": 2,
+        "tags": [
+            "#JP",
+            "#Gen3",
+            "#Sea",
+            "#Art"
+        ],
+        "arts": [
+            {
+                "art_id": "thatssexy",
+                "costs": [
+                    { "color": "red", "amount": 1 },
+                    { "color": "any", "amount": 1 }
+                ],
+                "power": 50,
+                "art_effects": [
+                    {
+                        "timing": "before_art",
+                        "effect_type": "power_boost_per_stacked",
+                        "amount": 20
+                    }
+                ]
+            }
+        ],
+        "bloom_effects": [
+            {
+                "effect_type": "deal_damage",
+                "special": true,
+                "amount": 10,
+                "target": "center",
+                "opponent": true
+            },
+            {
+                "effect_type": "deal_damage",
+                "special": true,
+                "amount": 10,
+                "target": "collab",
+                "opponent": true
             }
         ]
     },
