@@ -5948,6 +5948,16 @@ class GameEngine:
 
         return True
 
+    def handle_emote(self, player_id: str, emote_id: int):
+        """감정표현 이벤트 생성"""
+        emote_event = {
+            "event_type": EventType.EventType_Emote,
+            "event_player_id": player_id,
+            "emote_id": emote_id,
+            "timestamp": time.time() * 1000
+        }
+        self.send_event(emote_event)
+
     def handle_power_boost(self, amount: int, source_card_id: str):
         if amount != 0:
             self.performance_artstatboosts.power += amount

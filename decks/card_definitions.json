@@ -10808,6 +10808,42 @@
     },
 
     {
+        "card_id": "hBP04-098",
+        "card_type": "support",
+        "colors": [],
+        "sub_type": "tool",
+        "card_names": ["blacksmith_hammer"],
+        "rarity": "u",
+        "effects": [
+            {
+                "effect_type": "attach_card_to_holomem"
+            }
+        ],
+        "attached_effects": [
+            {
+                "timing": "before_art",
+                "effect_type": "power_boost",
+                "amount": 10
+            },
+            {
+                "timing": "before_art",
+                "effect_type": "power_boost",
+                "amount": 10,
+                "conditions": [
+                    {
+                        "condition": "attached_to_has_tag",
+                        "required_tags": ["#IDGen3"]
+                    },
+                    {
+                        "condition": "attached_to_bloom_level",
+                        "required_bloom_levels": [1, 2]
+                    }
+                ]
+            }
+        ]
+    },
+
+    {
         "NOTE": "PR CARDS START",
 
         "card_id": "hBD24-001",

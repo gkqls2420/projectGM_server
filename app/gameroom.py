@@ -155,19 +155,14 @@ class GameRoom:
         # 쿨다운 업데이트
         self.player_emote_cooldowns[player_id] = current_time
         
-        # 감정표현 이벤트 생성 및 브로드캐스트
-        emote_event = {
-            "event_type": EventType.EventType_Emote,
-            "event_player_id": player_id,
-            "emote_id": emote_id,
-            "timestamp": current_time
-        }
+        # 게임 엔진을 통해 감정표현 이벤트 생성
+        self.engine.handle_emote(player_id, emote_id)
         
-        # 모든 플레이어와 관찰자에게 전송
-        all_participants = self.players + self.observers
-        for participant in all_participants:
-            if participant.connected:
-                await participant.send_game_event(emote_event)
+        # 게임 엔진에서 생성된 이벤트들을 가져와서 브로드캐스트
+        events = self.engine.grab_events()
+        await self.send_events(events)
+        observer_events = self.engine.grab_observer_events()
+        await self.send_observer_events(observer_events)
         
         logger.info(f"Emote sent: player {player_id} sent emote {emote_id}")
 
