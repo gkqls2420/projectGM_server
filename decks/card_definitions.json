@@ -8359,20 +8359,23 @@
                         ]
                     },
                     {
+                        "effect_type": "order_cards",
+                                "from": "deck",
+                                "destination": "deck",
+                                "amount": 3
+                    },
+                    {
                         "effect_type": "reveal_top_deck",
                         "amount": 3
-                    },
+                    },                    
                     {
                         "effect_type": "choice",
                         "choice": [
                             {
-                                "effect_type": "archive_revealed_cards"
+                                "effect_type": "pass"
                             },
                             {
-                                "effect_type": "order_cards",
-                                "from": "deck",
-                                "destination": "deck",
-                                "amount": 3
+                                 "effect_type": "archive_revealed_cards"
                             }
                         ]
                     }
