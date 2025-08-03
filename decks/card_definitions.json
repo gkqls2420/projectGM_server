@@ -11031,7 +11031,7 @@
                 "amount": 10,
                 "conditions": [
                     {
-                        "condition": "attached_to_has_tag",
+                        "condition": "attached_to_has_tags",
                         "required_tags": ["#IDGen3"]
                     },
                     {
