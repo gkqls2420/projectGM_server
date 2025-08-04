@@ -43,6 +43,7 @@ class EffectType:
     EffectType_AttachCardToHolomem_Internal = "attach_card_to_holomem_internal"
     EffectType_BloomAlreadyBloomedThisTurn = "bloom_already_bloomed_this_turn"
     EffectType_BloomDebutPlayedThisTurnTo1st = "bloom_debut_played_this_turn_to_1st"
+    EffectType_BloomFromArchive = "bloom_from_archive"
     EffectType_BlockOpponentMovement = "block_opponent_movement"
     EffectType_BonusHp = "bonus_hp"
     EffectType_Choice = "choice"
@@ -691,6 +692,19 @@ class PlayerState:
                         return True
         return False
 
+    def can_bloom_this_turn(self, holomem):
+        # Check if this holomem can bloom this turn
+        # A holomem can bloom if it has accepted bloom levels and is not blocked
+        if "bloom_blocked" in holomem and holomem["bloom_blocked"]:
+            return False
+        
+        # 이번 턴에 플레이된 홀로멤은 bloom할 수 없음
+        if "played_this_turn" in holomem and holomem["played_this_turn"]:
+            return False
+        
+        accepted_bloom_levels = self.get_accepted_bloom_for_card(holomem)
+        return len(accepted_bloom_levels) > 0
+
     def get_card_hp(self, card):
         base_hp = card["hp"]
         effects = self.get_effects_at_timing("check_hp", card, "")
@@ -959,7 +973,7 @@ class PlayerState:
         move_card_event = {
             "event_type": EventType.EventType_MoveCard,
             "moving_player_id": self.player_id,
-            "from_zone": from_zone_name,
+            "from": from_zone_name,
             "to_zone": to_zone,
             "zone_card_id": zone_card_id,
             "card_id": card_id,
@@ -1062,7 +1076,11 @@ class PlayerState:
         target_card["attached_support"] = []
 
         bloom_card["bloomed_this_turn"] = True
-        bloom_card["damage"] = target_card["damage"]
+        # 아카이브에서 bloom할 때는 대미지를 초기화
+        if bloom_from_zone_name == "archive":
+            bloom_card["damage"] = 0
+        else:
+            bloom_card["damage"] = target_card["damage"]
         bloom_card["resting"] = target_card["resting"]
 
         # Put the bloom card where the target card was.
@@ -1079,7 +1097,7 @@ class PlayerState:
             "bloom_player_id": self.player_id,
             "bloom_card_id": bloom_card_id,
             "target_card_id": target_card_id,
-            "bloom_from_zone": bloom_from_zone_name,
+            "bloom_from": bloom_from_zone_name,
         }
         self.engine.broadcast_event(bloom_event)
 
@@ -4599,6 +4617,134 @@ class GameEngine:
                         "skill_id": effect["oshi_skill_id"],
                     }
                     self.broadcast_event(oshi_skill_event)
+            case EffectType.EffectType_BloomFromArchive:
+                target_condition = effect.get("target_condition", "")
+                target_tags = effect.get("target_tags", [])
+                target_location = effect.get("target_location", "stage")
+                # bloom_source는 자동으로 "archive"로 설정
+                bloom_source = "archive"
+                is_optional = effect.get("optional", False)
+                
+                # 아카이브 bloom 레벨 제한
+                archive_bloom_level = effect.get("archive_bloom_level", None)
+                stage_bloom_level = effect.get("stage_bloom_level", None)
+                
+                # Get target holomems based on condition
+                target_holomems = []
+                if target_location == "stage":
+                    target_holomems = effect_player.get_holomem_on_stage()
+                
+                if target_condition == "tag_in":
+                    target_holomems = [holomem for holomem in target_holomems if any(tag in holomem["tags"] for tag in target_tags)]
+                elif target_condition == "bloomable_this_turn":
+                    # Filter to only holomems that can bloom this turn
+                    target_holomems = [holomem for holomem in target_holomems if effect_player.can_bloom_this_turn(holomem)]
+                elif target_condition == "tag_in_bloomable_this_turn":
+                    # Filter to holomems that have the specified tags AND can bloom this turn
+                    target_holomems = [holomem for holomem in target_holomems 
+                                      if any(tag in holomem["tags"] for tag in target_tags) 
+                                      and effect_player.can_bloom_this_turn(holomem)]
+                
+                # 스테이지 bloom 레벨 필터링
+                if stage_bloom_level is not None:
+                    if stage_bloom_level == "debut" or stage_bloom_level == 0:
+                        # debut 홀로멤만 필터링 (bloom 레벨 1로 처리)
+                        target_holomems = [holomem for holomem in target_holomems if holomem["card_type"] == "holomem_debut"]
+                    elif isinstance(stage_bloom_level, list):
+                        # 배열인 경우: 여러 레벨 중 하나라도 포함되면 허용
+                        filtered_holomems = []
+                        for holomem in target_holomems:
+                            accepted_levels = effect_player.get_accepted_bloom_for_card(holomem)
+                            for level in stage_bloom_level:
+                                if level == "debut" or level == 0:
+                                    if holomem["card_type"] == "holomem_debut":
+                                        filtered_holomems.append(holomem)
+                                        break
+                                elif level in accepted_levels:
+                                    filtered_holomems.append(holomem)
+                                    break
+                        target_holomems = filtered_holomems
+                    else:
+                        # 단일 레벨인 경우
+                        if stage_bloom_level == "debut" or stage_bloom_level == 0:
+                            target_holomems = [holomem for holomem in target_holomems if holomem["card_type"] == "holomem_debut"]
+                        else:
+                            target_holomems = [holomem for holomem in target_holomems 
+                                             if stage_bloom_level in effect_player.get_accepted_bloom_for_card(holomem)]
+                
+                # Get bloom candidates from archive - 자동으로 bloom 가능한 카드만 필터링
+                bloom_candidates = []
+                for card in effect_player.archive:
+                    if not is_card_holomem(card):
+                        continue
+                    if card["card_type"] != "holomem_bloom":
+                        continue
+                    
+                    # 아카이브 bloom 레벨 필터링
+                    if archive_bloom_level is not None:
+                        if isinstance(archive_bloom_level, list):
+                            # 배열인 경우: 여러 레벨 중 하나라도 일치하면 허용
+                            level_match = False
+                            for level in archive_bloom_level:
+                                if level == "debut" or level == 0:
+                                    if card["bloom_level"] == 1:
+                                        level_match = True
+                                        break
+                                elif card["bloom_level"] == level:
+                                    level_match = True
+                                    break
+                            if not level_match:
+                                continue
+                        else:
+                            # 단일 레벨인 경우
+                            if archive_bloom_level == "debut" or archive_bloom_level == 0:
+                                if card["bloom_level"] != 1:
+                                    continue
+                            elif card["bloom_level"] != archive_bloom_level:
+                                continue
+                    
+                    # 스테이지의 홀로멤 중 하나라도 이 bloom 카드로 bloom할 수 있는지 확인
+                    can_bloom_with_any = False
+                    for holomem in target_holomems:
+                        if effect_player.can_bloom_with_card(holomem, card):
+                            can_bloom_with_any = True
+                            break
+                    
+                    if can_bloom_with_any:
+                        bloom_candidates.append(card)
+                
+                if len(target_holomems) == 0 or len(bloom_candidates) == 0:
+                    # No effect.
+                    pass
+                elif len(target_holomems) == 1 and len(bloom_candidates) == 1 and not is_optional:
+                    # Do it automatically.
+                    effect_player.bloom(bloom_candidates[0]["game_card_id"], target_holomems[0]["game_card_id"], self.continue_resolving_effects)
+                else:
+                    # Ask for a decision.
+                    amount_min = 0 if is_optional else 1
+                    decision_event = {
+                        "event_type": EventType.EventType_Decision_ChooseCards,
+                        "desired_response": GameAction.EffectResolution_ChooseCardsForEffect,
+                        "effect_player_id": effect_player_id,
+                        "all_card_seen": ids_from_cards(bloom_candidates),
+                        "cards_can_choose": ids_from_cards(bloom_candidates),
+                        "amount_min": amount_min,
+                        "amount_max": 1,
+                        "effect": effect,
+                    }
+                    self.broadcast_event(decision_event)
+                    self.set_decision({
+                        "decision_type": DecisionType.DecisionEffect_ChooseCardsForEffect,
+                        "decision_player": effect_player_id,
+                        "all_card_seen": ids_from_cards(bloom_candidates),
+                        "cards_can_choose": ids_from_cards(bloom_candidates),
+                        "amount_min": amount_min,
+                        "amount_max": 1,
+                        "effect": effect,
+                        "effect_resolution": self.handle_chose_bloom_now_choose_target,
+                        "continuation": self.continue_resolving_effects,
+                    })
+
             case EffectType.EffectType_SwitchCenterWithBack:
                 target_player = effect_player
                 swap_opponent_cards = "opponent" in effect and effect["opponent"]
@@ -5680,35 +5826,128 @@ class GameEngine:
 
         effect_player = self.get_player(performing_player_id)
         effect = decision_info_copy["effect"]
-        chosen_card = effect_player.get_card_from_hand(card_ids[0])
-        target_cards = decision_info_copy["target_cards"]
-        # Find out which of these are relevant for chosen card.
-        valid_targets = []
+        
+        # Check if this is a bloom_from_archive effect
+        if effect["effect_type"] == "bloom_from_archive":
+            # Get the chosen card from archive
+            chosen_card = None
+            for card in effect_player.archive:
+                if card["game_card_id"] == card_ids[0]:
+                    chosen_card = card
+                    break
+            
+            if not chosen_card:
+                continuation()
+                return
+                
+            # Get target holomems based on effect conditions
+            target_holomems = []
+            target_location = effect.get("target_location", "stage")
+            if target_location == "stage":
+                target_holomems = effect_player.get_holomem_on_stage()
+            
+            target_condition = effect.get("target_condition", "")
+            if target_condition == "tag_in":
+                target_tags = effect.get("target_tags", [])
+                target_holomems = [holomem for holomem in target_holomems if any(tag in holomem["tags"] for tag in target_tags)]
+            elif target_condition == "any_stage_holomem":
+                # All stage holomems are valid targets
+                pass
+            elif target_condition == "bloomable_this_turn":
+                # Filter to only holomems that can bloom this turn
+                target_holomems = [holomem for holomem in target_holomems if effect_player.can_bloom_this_turn(holomem)]
+            elif target_condition == "tag_in_bloomable_this_turn":
+                # Filter to holomems that have the specified tags AND can bloom this turn
+                target_tags = effect.get("target_tags", [])
+                target_holomems = [holomem for holomem in target_holomems 
+                                  if any(tag in holomem["tags"] for tag in target_tags) 
+                                  and effect_player.can_bloom_this_turn(holomem)]
+            
+            # 스테이지 bloom 레벨 필터링
+            stage_bloom_level = effect.get("stage_bloom_level", None)
+            if stage_bloom_level is not None:
+                if stage_bloom_level == "debut" or stage_bloom_level == 0:
+                    # debut 홀로멤만 필터링 (bloom 레벨 1로 처리)
+                    target_holomems = [holomem for holomem in target_holomems if holomem["card_type"] == "holomem_debut"]
+                elif isinstance(stage_bloom_level, list):
+                    # 배열인 경우: 여러 레벨 중 하나라도 포함되면 허용
+                    filtered_holomems = []
+                    for holomem in target_holomems:
+                        accepted_levels = effect_player.get_accepted_bloom_for_card(holomem)
+                        for level in stage_bloom_level:
+                            if level == "debut" or level == 0:
+                                if holomem["card_type"] == "holomem_debut":
+                                    filtered_holomems.append(holomem)
+                                    break
+                            elif level in accepted_levels:
+                                filtered_holomems.append(holomem)
+                                break
+                    target_holomems = filtered_holomems
+                else:
+                    # 단일 레벨인 경우
+                    if stage_bloom_level == "debut" or stage_bloom_level == 0:
+                        target_holomems = [holomem for holomem in target_holomems if holomem["card_type"] == "holomem_debut"]
+                    else:
+                        target_holomems = [holomem for holomem in target_holomems 
+                                         if stage_bloom_level in effect_player.get_accepted_bloom_for_card(holomem)]
+                
+            # Find out which of these are relevant for chosen card.
+            valid_targets = []
+            for card in target_holomems:
+                if effect_player.can_bloom_with_card(card, chosen_card):
+                    valid_targets.append(card)
 
-        for card in target_cards:
-            if effect_player.can_bloom_with_card(card, chosen_card):
-                valid_targets.append(card)
+            # Even if there is only one target, still give the user the chance to cancel.
+            decision_event = {
+                "event_type": EventType.EventType_Decision_ChooseHolomemForEffect,
+                "desired_response": GameAction.EffectResolution_ChooseCardsForEffect,
+                "effect_player_id": effect_player.player_id,
+                "cards_can_choose": ids_from_cards(valid_targets),
+                "effect": effect,
+            }
+            self.broadcast_event(decision_event)
+            self.set_decision({
+                "decision_type": DecisionType.DecisionEffect_ChooseCardsForEffect,
+                "decision_player": performing_player_id,
+                "all_card_seen": ids_from_cards(valid_targets),
+                "cards_can_choose": ids_from_cards(valid_targets),
+                "amount_min": 0,
+                "amount_max": 1,
+                "bloom_card_id": card_ids[0],
+                "effect_resolution": self.handle_bloom_into_target,
+                "continuation": continuation,
+            })
+        else:
+            # Original logic for hand-based bloom
+            chosen_card = effect_player.get_card_from_hand(card_ids[0])
+            target_cards = decision_info_copy.get("target_cards", [])
+            # Find out which of these are relevant for chosen card.
+            valid_targets = []
 
-        # Even if there is only one target, still give the user the chance to cancel.
-        decision_event = {
-            "event_type": EventType.EventType_Decision_ChooseHolomemForEffect,
-            "desired_response": GameAction.EffectResolution_ChooseCardsForEffect,
-            "effect_player_id": effect_player.player_id,
-            "cards_can_choose": ids_from_cards(valid_targets),
-            "effect": effect,
-        }
-        self.broadcast_event(decision_event)
-        self.set_decision({
-            "decision_type": DecisionType.DecisionEffect_ChooseCardsForEffect,
-            "decision_player": performing_player_id,
-            "all_card_seen": ids_from_cards(valid_targets),
-            "cards_can_choose": ids_from_cards(valid_targets),
-            "amount_min": 0,
-            "amount_max": 1,
-            "bloom_card_id": card_ids[0],
-            "effect_resolution": self.handle_bloom_into_target,
-            "continuation": continuation,
-        })
+            for card in target_cards:
+                if effect_player.can_bloom_with_card(card, chosen_card):
+                    valid_targets.append(card)
+
+            # Even if there is only one target, still give the user the chance to cancel.
+            decision_event = {
+                "event_type": EventType.EventType_Decision_ChooseHolomemForEffect,
+                "desired_response": GameAction.EffectResolution_ChooseCardsForEffect,
+                "effect_player_id": effect_player.player_id,
+                "cards_can_choose": ids_from_cards(valid_targets),
+                "effect": effect,
+            }
+            self.broadcast_event(decision_event)
+            self.set_decision({
+                "decision_type": DecisionType.DecisionEffect_ChooseCardsForEffect,
+                "decision_player": performing_player_id,
+                "all_card_seen": ids_from_cards(valid_targets),
+                "cards_can_choose": ids_from_cards(valid_targets),
+                "amount_min": 0,
+                "amount_max": 1,
+                "bloom_card_id": card_ids[0],
+                "effect_resolution": self.handle_bloom_into_target,
+                "continuation": continuation,
+            })
 
     def handle_bloom_into_target(self, decision_info_copy, performing_player_id:str, card_ids:List[str], continuation):
         if len(card_ids) == 0:
@@ -5891,7 +6130,7 @@ class GameEngine:
                         "desired_response": GameAction.EffectResolution_OrderCards,
                         "effect_player_id": performing_player_id,
                         "card_ids": remaining_card_ids,
-                        "from_zone": from_zone,
+                        "from": from_zone,
                         "to_zone": to_zone,
                         "bottom": bottom,
                         "hidden_info_player": performing_player_id,
@@ -5902,7 +6141,7 @@ class GameEngine:
                         "decision_type": DecisionType.DecisionEffect_OrderCards,
                         "decision_player": performing_player_id,
                         "card_ids": remaining_card_ids,
-                        "from_zone": from_zone,
+                        "from": from_zone,
                         "to_zone": to_zone,
                         "bottom": bottom,
                         "continuation": continuation,

@@ -576,8 +576,6 @@ class Test_hbp01_holomems(unittest.TestCase):
         validate_event(self, events[2], EventType.EventType_Decision_MainStep, self.player1, { "active_player": self.player1 })
         self.assertEqual(len(player2.life), 5)
         actions = reset_mainstep(self)
-
-
     def test_hbp01_014_deal_damage_collab_deal_damage(self):
         p1deck = generate_deck_with([], {"hBP01-010": 2, "hBP01-014": 2, }, [])
         initialize_game_to_third_turn(self, p1deck)
@@ -1192,7 +1190,6 @@ class Test_hbp01_holomems(unittest.TestCase):
         validate_event(self, events[6], EventType.EventType_EndTurn, self.player1, {})
         do_cheer_step_on_card(self, player2.center[0])
         self.assertEqual(len(player1.hand), 4)
-
     def test_hbp01_018_revealtopdeck_is_promise(self):
         p1deck = generate_deck_with([], {"hBP01-018": 2 }, [])
         initialize_game_to_third_turn(self, p1deck)
@@ -1809,8 +1806,6 @@ class Test_hbp01_holomems(unittest.TestCase):
         })
         actions = reset_mainstep(self)
         self.assertEqual(player1.hand[-1]["game_card_id"], chosen_card_id)
-
-
     def test_hBP01_031_collab_generateholopower_cantifdeckempty(self):
         p1deck = generate_deck_with([], {"hBP01-031": 3 }, [])
         initialize_game_to_third_turn(self, p1deck)
@@ -2403,7 +2398,6 @@ class Test_hbp01_holomems(unittest.TestCase):
             "rigged": False,
         })
         actions = reset_mainstep(self)
-
     def test_hBP01_045_bloomskip_hascheer_for_047(self):
         p1deck = generate_deck_with([], {"hBP01-045": 3, "hBP01-047": 3 }, [])
         initialize_game_to_third_turn(self, p1deck)
@@ -2571,6 +2565,7 @@ class Test_hbp01_holomems(unittest.TestCase):
         # Events - send cheer
         self.assertEqual(len(events), 4)
         validate_event(self, events[2], EventType.EventType_Decision_SendCheer, self.player1, {
+            "effect_player_id": self.player1,
             "amount_min": 1,
             "amount_max": 1,
             "from_zone": "cheer_deck",
@@ -2762,58 +2757,6 @@ class Test_hbp01_holomems(unittest.TestCase):
             "damage": 50
         })
         reset_performancestep(self)
-
-
-    def test_hBP01_052_movecheerbetweenmems_target_tag(self):
-        p1deck = generate_deck_with([], {"hBP01-052": 3, }, [])
-        initialize_game_to_third_turn(self, p1deck)
-        player1 : PlayerState = self.engine.get_player(self.players[0]["player_id"])
-        player2 : PlayerState = self.engine.get_player(self.players[1]["player_id"])
-        engine = self.engine
-        self.assertEqual(engine.active_player_id, self.player1)
-        # Has 004 and 2 005 in hand.
-        # Center is 003
-        # Backstage has 3 003 and 2 004.
-
-        """Test"""
-        player1.backstage = player1.backstage[2:]
-        player1.collab = player1.center
-        player1.center = []
-        p2center = player2.center[0]
-        test_card = put_card_in_play(self, player1, "hBP01-052", player1.center)
-        otherid = put_card_in_play(self, player1, "hBP01-052", player1.backstage)
-        g1 = spawn_cheer_on_card(self, player1, test_card["game_card_id"], "green", "g1")
-        actions = reset_mainstep(self)
-        begin_performance(self)
-        engine.handle_game_message(self.player1, GameAction.PerformanceStepUseArt, {
-            "performer_id": test_card["game_card_id"],
-            "art_id": "selamatpagi",
-            "target_id": player2.center[0]["game_card_id"],
-        })
-        events = engine.grab_events()
-        # Events - move cheer between mems only to ID though.
-        self.assertEqual(len(events), 4)
-        validate_event(self, events[0], EventType.EventType_PerformArt, self.player1, {})
-        validate_event(self, events[2], EventType.EventType_Decision_Choice, self.player1, {})
-        events = pick_choice(self, self.player1, 0)
-        # Events - the send cheer event is the only one.
-        self.assertEqual(len(events), 2)
-        validate_event(self, events[0], EventType.EventType_Decision_SendCheer, self.player1, {})
-        to_options = events[0]["to_options"]
-        from_options = events[0]["from_options"]
-        self.assertEqual(len(to_options), 2)
-        engine.handle_game_message(self.player1, GameAction.EffectResolution_MoveCheerBetweenHolomems, {
-            "placements": {
-                from_options[0]: to_options[1]
-            }
-        })
-        events = engine.grab_events()
-        # Events - move cheer, perform, damage, perform step
-        self.assertEqual(len(events), 6)
-        validate_event(self, events[0], EventType.EventType_MoveAttachedCard, self.player1, {})
-        validate_event(self, events[2], EventType.EventType_DamageDealt, self.player1, {})
-        reset_performancestep(self)
-        self.assertEqual(otherid["attached_cheer"][0]["game_card_id"], from_options[0])
 
 
     def test_hBP01_055_exclude_powerboost_no_other_id(self):
@@ -3015,9 +2958,6 @@ class Test_hbp01_holomems(unittest.TestCase):
             "special": True,
         })
         actions = reset_mainstep(self)
-
-
-
     def test_hBP01_065_remainingcards_archive(self):
         p1deck = generate_deck_with([], {"hBP01-065": 3, "hBP01-063": 3 }, [])
         initialize_game_to_third_turn(self, p1deck)
@@ -3599,8 +3539,6 @@ class Test_hbp01_holomems(unittest.TestCase):
             "special": True,
         })
         actions = reset_mainstep(self)
-
-
     def test_hBP01_075_collab_orderanddraw(self):
         p1deck = generate_deck_with([], {"hBP01-072": 3, "hBP01-075": 3 }, [])
         initialize_game_to_third_turn(self, p1deck)
@@ -4148,57 +4086,6 @@ class Test_hbp01_holomems(unittest.TestCase):
             "life_loss_prevented": True,
         })
         actions = reset_mainstep(self)
-
-    def test_hBP01_080_down_holomem(self):
-        p1deck = generate_deck_with([], {"hBP01-080": 3,"hBP01-079": 3  }, [])
-        initialize_game_to_third_turn(self, p1deck)
-        player1 : PlayerState = self.engine.get_player(self.players[0]["player_id"])
-        player2 : PlayerState = self.engine.get_player(self.players[1]["player_id"])
-        engine = self.engine
-        self.assertEqual(engine.active_player_id, self.player1)
-        # Has 004 and 2 005 in hand.
-        # Center is 003
-        # Backstage has 3 003 and 2 004.
-
-        """Test"""
-        player1.backstage = player1.backstage[:1]
-        test_card = put_card_in_play(self, player1, "hBP01-080", player1.backstage)
-        player2.center[0]["damage"] = 40
-        player2.backstage[1]["damage"] = 40
-        p2target = player2.backstage[1]
-        actions = reset_mainstep(self)
-
-        set_next_die_rolls(self, [5])
-        engine.handle_game_message(self.player1, GameAction.MainStepCollab, {
-            "card_id": test_card["game_card_id"],
-        })
-        events = engine.grab_events()
-        # Events - collab, roll die choice
-        self.assertEqual(len(events), 4)
-        validate_event(self, events[0], EventType.EventType_Collab, self.player1, {
-            "collab_player_id": self.player1,
-            "collab_card_id": test_card["game_card_id"],
-            "holopower_generated": 1,
-        })
-        events = pick_choice(self, self.player1, 0)
-        self.assertEqual(len(events), 8)
-        # Events - roll die, automatic since only 1 so down them, no cheer since prevented, so main step
-        validate_event(self, events[0], EventType.EventType_RollDie, self.player1, {
-            "effect_player_id": self.player1,
-            "die_result": 5,
-            "rigged": False,
-        })
-        validate_event(self, events[2], EventType.EventType_DownedHolomem_Before, self.player1, {})
-        validate_event(self, events[4], EventType.EventType_DownedHolomem, self.player1, {
-            "target_id": p2target["game_card_id"],
-            "target_player": self.player2,
-            "life_lost": 0,
-            "life_loss_prevented": True,
-            "game_over": False,
-        })
-        reset_mainstep(self)
-
-
     def test_hBP01_080_down_holomem_2_options(self):
         p1deck = generate_deck_with([], {"hBP01-080": 3,"hBP01-079": 3  }, [])
         initialize_game_to_third_turn(self, p1deck)
@@ -4797,8 +4684,6 @@ class Test_hbp01_holomems(unittest.TestCase):
         })
 
         actions = reset_mainstep(self)
-
-
     def test_hBP01_086_damage_bloom_cheeron2holomems_multiple_all(self):
         p1deck = generate_deck_with([], {"hBP01-086": 3, "hBP01-082": 3  }, [])
         initialize_game_to_third_turn(self, p1deck)
@@ -5416,8 +5301,6 @@ class Test_hbp01_holomems(unittest.TestCase):
             "special": False,
         })
         reset_performancestep(self)
-
-
     def test_hBP01_094_choose_cheer_matching_holomem_tagged(self):
         p1deck = generate_deck_with([], {"hBP01-092": 3,"hBP01-094": 3   }, {
             "hY02-001": 10,

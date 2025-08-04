@@ -8406,6 +8406,75 @@
             }
         ]
     },
+
+    {
+        "card_id": "hBP02-006",
+        "card_type": "oshi",
+        "card_names": ["kureiji_ollie"],
+        "colors": ["purple"],
+        "rarity": "osr",
+        "life": 5,
+        "actions": [
+            {
+                "skill_id": "zombietactic",
+                "cost": 2,
+                "limit": "once_per_turn",
+                "effects": [
+                    {
+                        "effect_type": "oshi_activation",
+                        "limit": "once_per_turn",
+                        "skill_id": "zombietactic",
+                        "pre_effects": [
+                            { "effect_type": "spend_holopower", "amount": 2 },
+                            { "effect_type": "record_used_once_per_turn_effect", "effect_id": "zombietactic" }
+                        ]
+                    },
+                    {
+                        "effect_type": "bloom_from_archive",
+                        "target_condition": "tag_in_bloomable_this_turn",
+                        "target_tags": ["#IDGen2"],
+                        "target_location": "stage",
+                        "optional": true
+                    }
+                ]
+            },
+            {
+                "skill_id": "ollieiscomingbacktolife",
+                "cost": 2,
+                "limit": "once_per_game",
+                "effects": [
+                    {
+                        "effect_type": "oshi_activation",
+                        "limit": "once_per_game",
+                        "skill_id": "ollieiscomingbacktolife",
+                        "pre_effects": [
+                            { "effect_type": "spend_holopower", "amount": 2 },
+                            { "effect_type": "record_used_once_per_game_effect", "effect_id": "ollieiscomingbacktolife" }
+                        ]
+                    },
+                    {
+                        "effect_type": "draw",
+                        "amount": 4
+                    },
+                    {
+                        "effect_type": "choose_cards",
+                        "from": "hand",
+                        "destination": "archive",
+                        "amount_min": 2,
+                        "amount_max": 2,
+                        "remaining_cards_action": "nothing"
+                    },
+                    {
+                        "effect_type": "bloom_from_archive",
+                        "target_condition": "bloomable_this_turn",
+                        "target_location": "stage",
+                        "optional": true
+                    }
+                ]
+            }
+        ]
+    },
+
     {
         "card_id": "hBP02-008",
         "card_type": "holomem_debut",
@@ -10739,7 +10808,7 @@
                                     "amount": 10,
                                     "target": "backstage",
                                     "opponent": true,
-                                    "multiple_targets": 1,
+                                    "multiple_targets": "sequential",
                                     "repeat": 3,
                                     "prevent_life_loss": true
                                 }
@@ -11035,11 +11104,8 @@
                 "conditions": [
                     {
                         "condition": "attached_to_has_tags",
-                        "required_tags": ["#IDGen3"]
-                    },
-                    {
-                        "condition": "attached_to_bloom_level",
-                        "required_bloom_levels": [1, 2]
+                        "required_tags": ["#IDGen3"],
+                        "required_bloom_levels": [1,2]
                     }
                 ]
             }
