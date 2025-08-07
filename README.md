@@ -36,4 +36,4 @@ Run the server: runserver.cmd
 - `DAYS_BACK`: 매치 로그 다운로드 시 조회할 일수 (기본값: 7)
 
 # Client Repo
-https://github.com/daniel-k-taylor/holocardclient
+https://github.com/gkqls2420/projectGM_client

@@ -167,6 +167,7 @@ class Condition:
     Condition_LifeAtMost = "life_at_most"
     Condition_MonocolorDifferentColorsOnStage = "monocolor_different_colors_on_stage"
     Condition_OpponentBackstageHpReducedCount = "opponent_backstage_hp_reduced_count"
+    Condition_BloomFromOshiSkill = "bloom_from_oshi_skill"
 
 
 class TurnEffectType:
@@ -212,6 +213,7 @@ class EventType:
     EventType_PerformanceStepStart = "performance_step_start"
     EventType_PerformArt = "perform_art"
     EventType_PlaySupportCard = "play_support_card"
+    EventType_PlayCard = "play_card"
     EventType_ResetStepActivate = "reset_step_activate"
     EventType_ResetStepChooseNewCenter = "reset_step_choose_new_center"
     EventType_ResetStepCollab = "reset_step_collab"
@@ -219,6 +221,8 @@ class EventType:
     EventType_RevealCards = "reveal_cards"
     EventType_RollDie = "roll_die"
     EventType_ShuffleDeck = "shuffle_deck"
+    EventType_DiscardHand = "discard_hand"
+    EventType_EnergyChanged = "energy_changed"
     EventType_SpecialActionActivation = "special_action_activation"
     EventType_TurnStart = "turn_start"
     EventType_Emote = "emote"
@@ -343,6 +347,11 @@ class GameAction:
     MainStepEndTurn = "mainstep_end_turn"
     MainStepEndTurnFields = {}
 
+    MainStepPlayCard = "mainstep_play_card"
+    MainStepPlayCardFields = {
+        "card_id": str,
+    }
+
     PerformanceStepUseArt = "performance_step_use_art"
     PerformanceStepUseArtFields = {
         "performer_id": str,
@@ -426,6 +435,12 @@ class PlayerState:
         self.last_revealed_cards = []
         self.last_die_roll_results = []
 
+        # Energy system for Slay the Spire style
+        self.energy = 3
+        self.max_energy = 99
+        self.energy_per_turn = 3
+        self.hand_size_limit = 10
+
         # Set up Oshi.
         self.oshi_id = player_info["oshi_id"]
         self.oshi_card = card_db.get_card_by_id(self.oshi_id)
@@ -480,6 +495,10 @@ class PlayerState:
 
     def draw(self, amount: int):
         # Draw from the top starting at 0.
+        # If deck is empty, shuffle discard pile back into deck
+        if len(self.deck) == 0:
+            self.shuffle_discard_to_deck()
+        
         amount = min(amount, len(self.deck))
         drawn_cards = self.deck[:amount]
         self.hand += drawn_cards
@@ -495,6 +514,38 @@ class PlayerState:
             "hand_count": len(self.hand),
         }
         self.engine.broadcast_event(draw_event)
+
+    def shuffle_discard_to_deck(self):
+        """Shuffle discard pile back into deck"""
+        if hasattr(self, 'discard_pile') and len(self.discard_pile) > 0:
+            self.deck = self.discard_pile.copy()
+            self.discard_pile = []
+            self.shuffle_deck()
+            
+            shuffle_event = {
+                "event_type": EventType.EventType_ShuffleDeck,
+                "shuffling_player_id": self.player_id,
+                "deck_count": len(self.deck),
+            }
+            self.engine.broadcast_event(shuffle_event)
+
+    def discard_hand(self):
+        """Discard all cards in hand to discard pile"""
+        if not hasattr(self, 'discard_pile'):
+            self.discard_pile = []
+        
+        discarded_cards = self.hand.copy()
+        self.discard_pile.extend(discarded_cards)
+        self.hand = []
+        
+        discard_event = {
+            "event_type": EventType.EventType_DiscardHand,
+            "discarding_player_id": self.player_id,
+            "discarded_card_ids": ids_from_cards(discarded_cards),
+            "hand_count": len(self.hand),
+            "discard_count": len(self.discard_pile),
+        }
+        self.engine.broadcast_event(discard_event)
 
     def mulligan(self):
         self.mulligan_count += 1
@@ -1174,6 +1225,26 @@ class PlayerState:
             top_holopower_id = self.holopower[0]["game_card_id"]
             self.move_card(top_holopower_id, "archive")
 
+    def spend_energy(self, amount):
+        """Spend energy for card play"""
+        if self.energy >= amount:
+            self.energy -= amount
+            return True
+        return False
+
+    def gain_energy(self, amount):
+        """Gain energy (for turn start or card effects)"""
+        self.energy = min(self.energy + amount, self.max_energy)
+
+    def reset_energy(self):
+        """Reset energy to per turn amount"""
+        self.energy = self.energy_per_turn
+
+    def can_play_card(self, card):
+        """Check if player can play a card (has enough energy)"""
+        energy_cost = card.get("energy_cost", 0)
+        return self.energy >= energy_cost
+
     def get_oshi_action_effects(self, skill_id):
         action = next(action for action in self.oshi_card["actions"] if action["skill_id"] == skill_id)
         return deepcopy(action["effects"])
@@ -1462,6 +1533,9 @@ class GameEngine:
         self.clock_accumulation_start_time = 0
         self.match_player_info = player_infos
         self.last_chosen_holomem_id = ""
+        
+        # 블룸 출처 추적을 위한 변수
+        self.last_bloom_from_oshi_skill = False
 
         self.take_damage_state : TakeDamageState = None
         self.performance_artstatboosts = ArtStatBoosts()
@@ -1611,12 +1685,23 @@ class GameEngine:
     def after_first_turn_choice(self):
         self.active_player_id = self.first_turn_player_id
 
-        # Draw starting hands
+        # Slay the Spire style - draw 5 cards and start with energy
         for player_state in self.player_states:
-            player_state.draw(STARTING_HAND_SIZE)
+            player_state.draw(5)
+            player_state.reset_energy()
+            
+            # Send energy update event
+            energy_event = {
+                "event_type": EventType.EventType_EnergyChanged,
+                "player_id": player_state.player_id,
+                "energy": player_state.energy,
+                "energy_per_turn": player_state.energy_per_turn,
+            }
+            self.broadcast_event(energy_event)
 
-        self.phase = GamePhase.Mulligan
-        self.handle_mulligan_phase()
+        # Skip mulligan and initial placement for Slay the Spire style
+        self.phase = GamePhase.PlayerTurn
+        self.begin_player_turn(False)
 
     def get_observer_catchup_events(self):
         observer_events = [{
@@ -1792,32 +1877,27 @@ class GameEngine:
         }
         self.broadcast_event(start_event)
 
-        # Reset Step
+        # Slay the Spire style turn start
         if not active_player.first_turn:
-            # 1. Activate resting cards.
-            activated_cards = active_player.active_resting_cards()
-            activation_event = {
-                "event_type": EventType.EventType_ResetStepActivate,
-                "active_player": self.active_player_id,
-                "activated_card_ids": activated_cards,
+            # Reset energy and draw cards
+            active_player.reset_energy()
+            active_player.discard_hand()  # Discard previous hand
+            active_player.draw(5)  # Draw 5 cards
+            
+            # Send energy change event
+            energy_event = {
+                "event_type": EventType.EventType_EnergyChanged,
+                "player_id": active_player.player_id,
+                "energy": active_player.energy,
+                "max_energy": active_player.max_energy,
+                "energy_per_turn": active_player.energy_per_turn,
             }
-            self.broadcast_event(activation_event)
-
-            # 2. Move and rest collab.
-            rested_cards, moved_backstage_cards = active_player.reset_collab()
-            reset_collab_event = {
-                "event_type": EventType.EventType_ResetStepCollab,
-                "active_player": self.active_player_id,
-                "rested_card_ids": rested_cards,
-                "moved_backstage_ids": moved_backstage_cards,
-            }
-            self.broadcast_event(reset_collab_event)
-
-            # 3. If Center is empty, select a non-resting backstage to be center.
-            # If all are resting, select a resting one.
-            self.reset_step_replace_center(self.continue_begin_turn)
+            self.broadcast_event(energy_event)
         else:
-            self.continue_begin_turn()
+            # First turn: just draw 5 cards
+            active_player.draw(5)
+        
+        self.continue_begin_turn()
 
     def reset_step_replace_center(self, continuation):
         active_player = self.get_player(self.active_player_id)
@@ -1852,43 +1932,17 @@ class GameEngine:
             continuation()
 
     def continue_begin_turn(self):
-        # The Reset Step is over.
-
-        ## Draw Step - draw a card, game over if you have none.
+        # Slay the Spire style turn - go directly to main step
         active_player = self.get_player(self.active_player_id)
-        if len(active_player.deck) == 0:
+        
+        # Check if deck is empty and no discard pile
+        if len(active_player.deck) == 0 and (not hasattr(active_player, 'discard_pile') or len(active_player.discard_pile) == 0):
             # Game over, no cards to draw.
             self.end_game(loser_id=active_player.player_id, reason_id=GameOverReason.GameOverReason_DeckEmptyDraw)
             return
 
-        active_player.draw(1)
-
-        ## Cheer Step
-        # Get the top cheer card id and send a decision.
-        # Any holomem in center/collab/backstage can be the target.
-        if len(active_player.cheer_deck) > 0:
-            top_cheer_card_id = active_player.cheer_deck[0]["game_card_id"]
-            target_options = ids_from_cards(active_player.center + active_player.collab + active_player.backstage)
-
-            decision_event = {
-                "event_type": EventType.EventType_CheerStep,
-                "desired_response": GameAction.PlaceCheer,
-                "active_player": self.active_player_id,
-                "cheer_to_place": [top_cheer_card_id],
-                "source": "cheer_deck",
-                "options": target_options,
-            }
-            self.broadcast_event(decision_event)
-            self.set_decision({
-                "decision_type": DecisionType.DecisionPlaceCheer,
-                "decision_player": self.active_player_id,
-                "cheer_to_place": [top_cheer_card_id],
-                "options": target_options,
-                "continuation": self.begin_main_step,
-            })
-        else:
-            # No cheer left!
-            self.begin_main_step()
+        # Go directly to main step
+        self.begin_main_step()
     def get_available_mainstep_actions(self):
         active_player = self.get_player(self.active_player_id)
 
@@ -1982,7 +2036,24 @@ class GameEngine:
                         "owning_card_id": holomem["game_card_id"]
                     })
 
-        # F. Use Support Cards
+        # F. Play Cards (Slay the Spire style)
+        for card in active_player.hand:
+            # Check if player can play this card (has enough energy)
+            if not active_player.can_play_card(card):
+                continue
+                
+            # Check if card has energy_cost
+            if "energy_cost" not in card:
+                continue
+                
+            # Add playable cards to available actions
+            available_actions.append({
+                "action_type": GameAction.MainStepPlayCard,
+                "card_id": card["game_card_id"],
+                "energy_cost": card.get("energy_cost", 0),
+            })
+
+        # G. Use Support Cards (original hololive style)
         for card in active_player.hand:
             if card["card_type"] == "support":
                 if is_card_limited(card):
@@ -2093,6 +2164,17 @@ class GameEngine:
 
         # This is no longer the game's first turn.
         self.game_first_turn = False
+
+        # Discard hand for Slay the Spire style
+        discarded_cards = active_player.discard_hand()
+        
+        # Send discard hand event
+        discard_event = {
+            "event_type": EventType.EventType_DiscardHand,
+            "discarding_player_id": active_player.player_id,
+            "discarded_card_ids": [card["game_card_id"] for card in discarded_cards],
+        }
+        self.broadcast_event(discard_event)
 
         ending_player_id = self.active_player_id
         next_turn_player_id = self.other_player(self.active_player_id).player_id
@@ -2986,6 +3068,9 @@ class GameEngine:
                     if damage > 0:
                         return True
                 return False
+            case Condition.Condition_BloomFromOshiSkill:
+                # SP 오시 스킬로 블룸했는지 확인
+                return self.last_bloom_from_oshi_skill
             case _:
                 raise NotImplementedError(f"Unimplemented condition: {condition['condition']}")
         return False
@@ -3553,8 +3638,10 @@ class GameEngine:
                         same_names = []
                         for card_id in self.last_chosen_cards:
                             card = self.find_card(card_id)
-                            same_names += card["card_names"]
-                        cards_can_choose = [card for card in cards_can_choose if any(name in card["card_names"] for name in same_names)]
+                            if card and "card_names" in card:
+                                same_names += card["card_names"]
+                        if same_names:
+                            cards_can_choose = [card for card in cards_can_choose if any(name in card.get("card_names", []) for name in same_names)]
 
                     # two_tone_color_pc: Filter to only monocolor holomems
                     if requirement_monocolor_only:
@@ -4162,6 +4249,9 @@ class GameEngine:
                             case "tag_in":
                                 limitation_tags = effect.get("limitation_tags", [])
                                 holomems = [holomem for holomem in holomems if any(color in holomem["tags"] for color in limitation_tags)]
+                            case "name_in":
+                                limitation_names = effect.get("limitation_names", [])
+                                holomems = [holomem for holomem in holomems if any(name in holomem["card_names"] for name in limitation_names)]
                         target_options = ids_from_cards(holomems)
                     case "self":
                         target_options = [effect["source_card_id"]]
@@ -4950,6 +5040,8 @@ class GameEngine:
                     handled = self.handle_main_step_special_action(player_id, action_data)
                 case GameAction.MainStepPlaySupport:
                     handled = self.handle_main_step_play_support(player_id, action_data)
+                case GameAction.MainStepPlayCard:
+                    handled = self.handle_main_step_play_card(player_id, action_data)
                 case GameAction.MainStepBatonPass:
                     handled = self.handle_main_step_baton_pass(player_id, action_data)
                 case GameAction.MainStepBeginPerformance:
@@ -5263,6 +5355,10 @@ class GameEngine:
         player = self.get_player(player_id)
         card_id = action_data["card_id"]
         target_id = action_data["target_id"]
+        
+        # 일반적인 블룸은 SP 오시 스킬이 아님
+        self.last_bloom_from_oshi_skill = False
+        
         player.bloom(card_id, target_id, continuation)
 
         return True
@@ -5445,6 +5541,102 @@ class GameEngine:
         self.begin_resolving_effects(card_effects, card_completion_continuation, [card])
 
         return True
+
+    def validate_main_step_play_card(self, player_id:str, action_data:dict):
+        if not self.validate_decision_base(player_id, action_data, DecisionType.DecisionMainStep, GameAction.MainStepPlayCard):
+            return False
+
+        player = self.get_player(player_id)
+        card_id = action_data["card_id"]
+        card, _, _ = player.find_card(card_id)
+
+        if not card:
+            return False
+
+        # Check if player has enough energy
+        if not player.can_play_card(card):
+            return False
+
+        return True
+
+    def handle_main_step_play_card(self, player_id:str, action_data:dict):
+        if not self.validate_main_step_play_card(player_id, action_data):
+            return False
+
+        continuation = self.clear_decision()
+
+        player = self.get_player(player_id)
+        card_id = action_data["card_id"]
+        card, _, _ = player.find_card(card_id)
+
+        # Check if player has enough energy
+        card_definition = self.card_database.get_card(card["definition_id"])
+        energy_cost = card_definition.get("energy_cost", 0)
+        
+        if not player.spend_energy(energy_cost):
+            return False
+
+        # Send energy change event
+        energy_event = {
+            "event_type": EventType.EventType_EnergyChanged,
+            "player_id": player.player_id,
+            "energy": player.energy,
+            "max_energy": player.max_energy,
+            "energy_per_turn": player.energy_per_turn,
+        }
+        self.broadcast_event(energy_event)
+
+        # Send an event showing the card being played.
+        play_event = {
+            "event_type": EventType.EventType_PlayCard,
+            "player_id": player_id,
+            "card_id": card_id,
+            "energy_cost": energy_cost,
+        }
+        self.broadcast_event(play_event)
+
+        # Remove the card from hand and add to discard pile
+        card, _, _ = player.find_and_remove_card(card_id)
+        if not hasattr(player, 'discard_pile'):
+            player.discard_pile = []
+        player.discard_pile.append(card)
+
+        # Apply card effects
+        self.apply_card_effects(player, card, card_definition)
+
+        return True
+
+    def apply_card_effects(self, player, card, card_definition):
+        """Apply card effects based on card definition"""
+        if "effects" not in card_definition:
+            return
+            
+        for effect in card_definition["effects"]:
+            effect_type = effect.get("effect_type")
+            if effect_type == "deal_damage":
+                amount = effect.get("amount", 0)
+                target = effect.get("target", "opponent_center")
+                opponent = effect.get("opponent", False)
+                
+                if opponent:
+                    opponent_player = self.other_player(player.player_id)
+                    opponent_player.life_count -= amount
+                    
+                    # Check for game over
+                    if opponent_player.life_count <= 0:
+                        self.end_game(loser_id=opponent_player.player_id, reason_id=GameOverReason.GameOverReason_NoLifeLeft)
+                        return
+                else:
+                    player.life_count -= amount
+                    
+                    # Check for game over
+                    if player.life_count <= 0:
+                        self.end_game(loser_id=player.player_id, reason_id=GameOverReason.GameOverReason_NoLifeLeft)
+                        return
+                        
+            elif effect_type == "heal":
+                amount = effect.get("amount", 0)
+                player.life_count = min(player.life_count + amount, player.max_life)
 
     def validate_main_step_baton_pass(self, player_id:str, action_data:dict):
         if not self.validate_decision_base(player_id, action_data, DecisionType.DecisionMainStep, GameAction.MainStepBatonPassFields):
@@ -5956,6 +6148,13 @@ class GameEngine:
             return
         effect_player = self.get_player(performing_player_id)
         bloom_card_id = decision_info_copy["bloom_card_id"]
+        
+        # 블룸 출처 설정 (SP 오시 스킬로부터 온 경우)
+        if "effect" in decision_info_copy and decision_info_copy["effect"].get("effect_type") == "bloom_from_archive":
+            self.last_bloom_from_oshi_skill = True
+        else:
+            self.last_bloom_from_oshi_skill = False
+            
         effect_player.bloom(bloom_card_id, card_ids[0], continuation)
 
     def handle_return_holomem_to_debut(self, decision_info_copy, performing_player_id:str, card_ids:List[str], continuation):

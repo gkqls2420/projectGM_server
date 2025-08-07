@@ -9869,6 +9869,57 @@
     },
 
     {
+        "card_id": "hBP02-048",
+        "card_type": "holomem_debut",
+        "card_names": ["kureiji_ollie"],
+        "special_deck_limit": 50,
+        "rarity": "c",
+        "colors": ["purple"],
+        "hp": 120,
+        "baton_cost": 1,
+        "tags": ["#ID", "#IDGen2", "#language"],
+        "arts": [
+            {
+                "art_id": "zoombangwa",
+                "costs": [
+                    { "color": "any", "amount": 1 }
+                ],
+                "power": 20
+            }
+        ]
+    },
+
+    {
+        "card_id": "hBP02-050",
+        "card_type": "holomem_bloom",
+        "bloom_level": 1,
+        "card_names": ["kureiji_ollie"],
+        "special_deck_limit": 50,
+        "rarity": "c",
+        "colors": ["purple"],
+        "hp": 160,
+        "baton_cost": 1,
+        "tags": ["#ID", "#IDGen2", "#language"],
+        "arts": [
+            {
+                "art_id": "ajuniorwholikesyouverymuch",
+                "costs": [
+                    { "color": "any", "amount": 1 }
+                ],
+                "power": 20
+            },
+            {
+                "art_id": "ahimmsorrysenpai",
+                "costs": [
+                    { "color": "purple", "amount": 1 },
+                    { "color": "any", "amount": 1 }
+                ],
+                "power": 60
+            }
+        ]
+    },
+
+    {
         "card_id": "hBP02-062",
         "card_type": "holomem_bloom",
         "bloom_level": 1,
@@ -11023,6 +11074,62 @@
     },
 
     {
+        "card_id": "hBP04-061",
+        "card_names": ["kureiji_ollie"],
+        "card_type": "holomem_bloom",
+        "bloom_level": 2,
+        "rarity": "r",
+        "colors": ["purple"],
+        "tags": ["#ID", "#IDGen2", "#language"],
+        "hp": 200,
+        "baton_cost": 2,
+        "arts": [
+            {
+                "art_id": "holorossoul",
+                "costs": [
+                    { "color": "purple", "amount": 1 },
+                    { "color": "any", "amount": 1 }
+                ],
+                "power": 80,
+                "art_effects": [
+                    {
+                        "timing": "before_art",
+                        "effect_type": "power_boost_per_condition",
+                        "amount_per": 20,
+                        "per": "self_stage_idgen2_count"
+                    },
+                    {
+                        "timing": "before_art",
+                        "effect_type": "power_boost",
+                        "amount": 50,
+                        "conditions": [
+                            {
+                                "condition": "target_color",
+                                "color_requirement": "green"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "bloom_effects": [
+            {
+                "effect_type": "restore_hp",
+                "target": "holomem",
+                "amount": "all",
+                "limitation": "name_in",
+                "limitation_names": ["kureiji_ollie"],
+                "hit_all_targets": false,
+                "conditions": [
+                    {
+                        "condition": "bloom_from_oshi_skill"
+                    }
+                ]
+            }
+        ]
+    },
+
+    {
         "card_id": "hBP04-089",
         "card_type": "support",
         "sub_type": "item",
@@ -12044,6 +12151,40 @@
         "colors": ["yellow"],
 
         "NOTE": "CHEER CARDS END"
+    },
+
+    {
+        "NOTE": "SLAY THE SPIRE BASIC CARDS START",
+
+        "card_id": "sts_basic_strike",
+        "card_type": "unit",
+        "card_names": ["Basic Strike"],
+        "colors": ["red"],
+        "rarity": "c",
+        "energy_cost": 1,
+        "effects": [
+            {
+                "effect_type": "deal_damage",
+                "amount": 6,
+                "target": "opponent_center",
+                "opponent": true
+            }
+        ]
+    },
+    {
+        "card_id": "sts_basic_defend",
+        "card_type": "support",
+        "card_names": ["Basic Defend"],
+        "colors": ["blue"],
+        "rarity": "c",
+        "energy_cost": 1,
+        "effects": [
+            {
+                "effect_type": "restore_hp",
+                "amount": 5,
+                "target": "self_center"
+            }
+        ]
     }
 
 ]

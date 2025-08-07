@@ -79,7 +79,7 @@ echo ========================================
 echo ✅ GitHub Push 완료!
 echo ========================================
 echo.
-echo 저장소: https://github.com/gkqls2420/holoduel
+echo 저장소: https://github.com/gkqls2420/projectGM_server.git
 echo 커밋 메시지: %commit_message%
 echo.
 

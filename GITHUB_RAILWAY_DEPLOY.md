@@ -144,4 +144,4 @@ railway logs --follow
 ### 유용한 링크
 - [Railway Documentation](https://docs.railway.app/)
 - [Railway Discord](https://discord.gg/railway)
-- [GitHub Repository](https://github.com/gkqls2420/holoduel) 
+- [GitHub Repository](https://github.com/gkqls2420/projectGM_server.git) 

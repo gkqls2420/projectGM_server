@@ -1,0 +1,12 @@
+{
+    "deck_id": "starter_sts",
+    "oshi_id": "hSD01-001",
+    "deck": {
+        "sts_basic_strike": 7,
+        "sts_basic_defend": 3
+    },
+    "cheer_deck": {
+        "hY01-001": 10,
+        "hY02-001": 10
+    }
+}

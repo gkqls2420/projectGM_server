@@ -3,7 +3,7 @@ echo HoloDuel Client - Quick Push
 echo ============================
 
 REM 클라이언트 디렉토리로 이동
-cd /d "D:\OneDrive\OneDrive - KRAFTON\cursor_study\holoduel\holocardclient-main"
+cd /d "D:\OneDrive\OneDrive - KRAFTON\cursor_study\projectGM\holocardclient-main"
 
 REM 모든 변경사항 추가 및 커밋
 git add .

@@ -7,9 +7,9 @@ from copy import deepcopy
 
 card_db = CardDatabase()
 
-# Load the starter deck from decks/starter_azki.json
+# Load the starter deck from decks/starter_sts.json
 decks_path = os.path.join(Path(__file__).parent.parent, "decks")
-azki_path = os.path.join(decks_path, "starter_azki.json")
+azki_path = os.path.join(decks_path, "starter_sts.json")
 sora_path = os.path.join(decks_path, "starter_sora.json")
 with open(azki_path, "r") as f:
     azki_starter = json.load(f)

@@ -153,6 +153,18 @@ def get_builtin_decks():
                 "hY01-001": 10,
                 "hY02-001": 10
             }
+        },
+        "starter_sts": {
+            "deck_id": "starter_sts",
+            "oshi_id": "hSD01-001",
+            "deck": {
+                "sts_basic_strike": 7,
+                "sts_basic_defend": 3
+            },
+            "cheer_deck": {
+                "hY01-001": 10,
+                "hY02-001": 10
+            }
         }
     }
 
@@ -204,7 +216,7 @@ def convert_holodelta_to_simple_format(holodelta_deck):
 
 def get_default_ai_deck():
     """기본 AI 덱을 반환합니다"""
-    return get_builtin_decks()["starter_azki"]
+    return get_builtin_decks()["starter_sts"]
 
 # AI 덱을 동적으로 로드
 DefaultAIDeck = load_ai_deck(AI_DECK_NAME)
